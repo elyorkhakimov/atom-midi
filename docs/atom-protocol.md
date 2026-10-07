@@ -1,6 +1,7 @@
 # PreSonus ATOM — native control protocol
 
-Status: **Phase 0. Desk research done; Mac mini fully checked (2026-10-07); other devices pending.** The code
+Status: **Phase 0 closed 2026-10-07.** Checked on the Mac mini and OnePlus 12. MacBook, S22 Ultra and Chromebook were
+not tested (owner's call: expected to behave the same). Test them if problems appear. The code
 version of this table is `src/midi/atomMap.ts`. Update both together.
 
 Channels in this document are **1-based** (as on hardware and in the MIDI monitor).
@@ -32,7 +33,7 @@ We only use protocol facts from these projects, not their code.
 | Knobs | CC 14–17 ch 1, relative: 1–63 = +n, 65–127 = −(v−64) (acceleration) | ✅ | ✅ (max step seen 6) |
 | Buttons | CC ch 1, 127 = down, 0 = up (see table) | ✅ | ✅ all 20 |
 | Button LEDs | Same CC out on ch 1: 127 = bright, 0 = dim (atompad: can't fully turn off) | ✅ | ✅ bright/dim |
-| RGB buttons | Preset (27), Bank (26), Play (109): R/G/B via same CC on ch 2/3/4 | atompad only | ❌ more buttons take RGB; probably the nav buttons too. Exact list pending |
+| RGB buttons | Preset (27), Bank (26), Play (109): R/G/B via same CC on ch 2/3/4 | atompad only | Preset, Bank, Select, Play |
 | Shift LED | padbound: Shift (32) has no LED | padbound only | ☐ |
 | Pressure | Default: **channel** aftertouch. Setup menu → pad 7 = **polyphonic** aftertouch (per pad, `Ax note value`). Also CC 22 or off | atompad | ✅ Setup + pad 7 → poly |
 | Mode persistence | Native mode lasts until exit or USB replug | atompad | ☐ |
@@ -56,7 +57,7 @@ We only use protocol facts from these projects, not their code.
 | Down | 89 | right | mono |
 | Left | 90 | right | mono |
 | Right | 102 | right | mono |
-| Select | 103 | right | mono |
+| Select | 103 | right | **RGB** |
 | Zoom | 104 | right | mono |
 | Click | 105 | right | mono |
 | Record | 107 | right | mono |
@@ -75,10 +76,10 @@ message. If it does, a colour change costs 1–3 messages instead of 4. The atom
 
 1. ~~Do states 1 and 2 blink or breathe?~~ Yes, on our unit (Mac mini report). Firmware version still to be recorded.
 2. ~~Does `minimal` diff mode work?~~ Yes (Mac mini report).
-3. Which buttons react to RGB? (More than 26/27/109; tick them per button in atom-test.) Can a mono button LED be fully off?
+3. ~~Which buttons react to RGB?~~ Preset, Bank, Select, Play. Can a mono button LED be fully off?
 4. ~~Is the pad layout exactly as above?~~ Yes (walk test).
-4a. What is `BF 7F 7F` (CC 127 = 127 on ch 16)? Seen 10× then 4× on the Mac mini. Likely the device
-    acknowledging native mode. Check: click "Enter native mode" with the log open and see if one arrives.
+4a. What is `BF 7F 7F` (CC 127 = 127 on ch 16)? Seen 10× then 4× on the Mac mini, and 1× on the OnePlus
+    (a single session, so probably a single native-mode enter). Likely the device acknowledging native mode. Check: click "Enter native mode" with the log open and see if one arrives.
     If so, it can confirm that native mode was really entered.
 4b. Hit-feedback LED latency: native mode feels slower than the ATOM's own lighting in factory mode. Compare the `batched` and `state-first` hit modes, at 100% brightness.
 5. Port names per OS: macOS reports "ATOM". What do Android and ChromeOS report? `isAtomPortName` matches `\batom\b` and excludes "SQ".
@@ -109,23 +110,23 @@ The MIDI monitor (`/tools/midi-monitor/`) shows raw traffic with timestamps and 
 
 | Check | MacBook M4 (Chrome) | Mac mini (Brave 154) | OnePlus 12 (Chrome) | Galaxy S22 Ultra (Chrome) | Chromebook |
 |---|---|---|---|---|---|
-| Port name(s) | | `ATOM` (PreSonus), in + out | | | |
-| Native mode enter/exit | | ✅ | | | |
-| All pads light R/G/B/W | | ✅ | | | |
-| Pad layout / notes 36–51 | | ✅ walk | | | |
-| All 20 buttons map | | ✅ | | | |
-| 4 knobs map | | ✅ | | | |
-| Poly aftertouch | | ✅ after Setup + pad 7 | | | |
+| Port name(s) | | `ATOM` (PreSonus), in + out | `ATOM` (PreSonus) | | |
+| Native mode enter/exit | | ✅ | ✅ (tester: no issues) | | |
+| All pads light R/G/B/W | | ✅ | ✅ (tester: no issues) | | |
+| Pad layout / notes 36–51 | | ✅ walk | ✅ mapping | | |
+| All 20 buttons map | | ✅ | ✅ | | |
+| 4 knobs map | | ✅ | ✅ | | |
+| Poly aftertouch | | ✅ after Setup + pad 7 | ✅ | | |
 | State 1/2 blink/breathe | | ✅ both | | | |
 | Minimal diff mode | | ✅ | | | |
-| RGB buttons | | more than 26/27/109 | | | |
+| RGB buttons | | (same ATOM: see OnePlus) | Preset, Bank, Select, Play | | |
 | 30 / 60 fps LED animation OK | | ✅ / ✅ (no sound to judge) | | | |
-| Hit LED feels instant | | ✅ with batched send | | | |
+| Hit LED feels instant | | ✅ with batched send | ✅ (tester: no issues) | | |
 | Exit on tab hide / app switch | | ✅ | | | |
 | Re-enter on return | | ✅ | | | |
 | Hot-plug recovery | | ✅ | | | |
-| timeStamp valid; handler lag mean/max (ms) | | ✅ 0 bad; 0.57 / 30 (one spike) | | | |
-| Audio: sample rate, base / output latency | | 48 kHz, 5.3 / 16 ms | | | |
+| timeStamp valid; handler lag mean/max (ms) | | ✅ 0 bad; 0.57 / 30 (one spike) | ✅ 0 bad; 2.9 / 19.8 | | |
+| Audio: sample rate, base / output latency | | 48 kHz, 5.3 / 16 ms | 48 kHz, 4 / **40 ms** | | |
 
 ## Findings log
 
@@ -155,3 +156,23 @@ The MIDI monitor (`/tools/midi-monitor/`) shows raw traffic with timestamps and 
 - `BF 7F 7F` ×4. Likely a native-mode acknowledgement (see open question 4a).
 - Handler lag mean 0.57 ms, one 30 ms spike in 4276 events. Watch this on phones.
 - Audio: 48 kHz, baseLatency 5.3 ms, outputLatency 16 ms.
+
+### 2026-10-07 — OnePlus 12, Chrome 154 (`reports/2026-10-07-oneplus-12-chrome.json`)
+
+- Guided mapping **41/41 pass**. Same port name (`ATOM`, PreSonus), poly aftertouch works.
+- RGB buttons from the colour-cycle test: **Preset, Bank, Select, Play** (`atomMap` updated: Select → rgb).
+- Manual checks were not ticked. The tester reports everything behaved like the Mac except audio latency.
+- **Audio latency is noticeably worse on the phone:** Chrome reports outputLatency **40 ms** (Mac mini 16 ms),
+  baseLatency 4 ms. Handler lag mean 2.9 ms / max 19.8 ms (Mac 0.6 / 30).
+  The phone's USB-C port is taken by the ATOM, so audio went through the speaker (or Bluetooth, which would be
+  worse and is under-reported). See "Phone audio latency" below.
+- `BF 7F 7F` ×1.
+
+### Phone audio latency (to address in Phase 1)
+
+- Try `AudioContext({ latencyHint: 0 })` and other values, and compare the reported `outputLatency`.
+- Make sure the context runs at the device's native rate (48 kHz here) so Chrome can use the AAudio low-latency path.
+- Wired audio with the ATOM plugged in needs a USB-C hub with a headphone DAC/passthrough (the OnePlus 12 has
+  no 3.5 mm jack). Check whether that lowers outputLatency compared with the speaker.
+- A measured round-trip test (mic loopback) is in Phase 3. Until then, Chrome's reported `outputLatency` is
+  our estimate, and the latency-calibration screen covers scoring.

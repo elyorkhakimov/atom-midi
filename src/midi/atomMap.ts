@@ -132,7 +132,7 @@ export type ButtonId =
 
 /**
  * In physical order, top to bottom: left column, then right column.
- * `led: 'rgb'` follows atompad; hardware shows more buttons accept RGB (list pending).
+ * `led: 'rgb'` verified with the random-colour cycle on hardware (2026-10-07).
  */
 export const BUTTONS: readonly ButtonDef[] = [
   { id: 'setup', cc: 86, label: 'Setup', side: 'left', led: 'mono' },
@@ -149,7 +149,7 @@ export const BUTTONS: readonly ButtonDef[] = [
   { id: 'down', cc: 89, label: 'Down', side: 'right', led: 'mono' },
   { id: 'left', cc: 90, label: 'Left', side: 'right', led: 'mono' },
   { id: 'right', cc: 102, label: 'Right', side: 'right', led: 'mono' },
-  { id: 'select', cc: 103, label: 'Select', side: 'right', led: 'mono' },
+  { id: 'select', cc: 103, label: 'Select', side: 'right', led: 'rgb' },
   { id: 'zoom', cc: 104, label: 'Zoom', side: 'right', led: 'mono' },
   { id: 'click', cc: 105, label: 'Click', side: 'right', led: 'mono' },
   { id: 'record', cc: 107, label: 'Record', side: 'right', led: 'mono' },
