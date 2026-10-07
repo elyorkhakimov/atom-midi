@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-07T05:02:57.174Z",
+  "device": "mac mini, brave browser",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "ports": {
+    "input": null,
+    "output": null,
+    "manufacturer": null
+  },
+  "pressureMode": "channel",
+  "handlerLagMs": {
+    "mean": 0.76,
+    "max": 6.2,
+    "samples": 2566,
+    "zeroOrFutureTimestamps": 0
+  },
+  "encoderMaxDelta": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "unknownMessages": {
+    "BF 7F": 10
+  },
+  "mapping": [],
+  "checks": {
+    "native": true,
+    "fill": true,
+    "walk": true,
+    "rgb": true,
+    "state1": true,
+    "state2": true,
+    "state64": true,
+    "minimal": true,
+    "anim30": true,
+    "anim60": true,
+    "hit": false,
+    "btnLed": true,
+    "btnRgb": false,
+    "hide": true,
+    "show": true,
+    "replug": true,
+    "poly": false
+  },
+  "notes": "in native mode led hit feedback doesn't feel as instantaneous as in midi mode\na lot of buttons (not pads) change rgb, not jus the ones you mentioned\nwhen two or more pads are pressed and held, the pressure reports the same for all of them\nfor \"Rainbow 60 fps runs smoothly; pad hits still respond instantly\" - is it possible to make the page play sounds? I can't tell if there are skips or pads aren't playing during animation\n\n\ntrying to open this page and clicking \"Connect MIDI\" reports \"Web MIDI is not available in this browser, use Chrome or Edge\". But I was using chrome. Atom does power on, but browser doesn't seem to connect"
+}

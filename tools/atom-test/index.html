@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATOM Protocol Test</title>
+  <link rel="stylesheet" href="../shared/tools.css" />
+  <link rel="stylesheet" href="./atom-test.css" />
+</head>
+<body>
+  <header>
+    <h1>ATOM Protocol Test</h1>
+    <nav><a href="../../">Home</a><a href="../midi-monitor/">MIDI monitor</a></nav>
+    <span id="status" class="row"></span>
+  </header>
+  <main>
+    <section>
+      <h2>1 · Connection</h2>
+      <div class="row">
+        <button id="connect" class="primary">Connect MIDI</button>
+        <label>In <select id="inSel"></select></label>
+        <label>Out <select id="outSel"></select></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="enterNative">Enter native mode</button>
+        <button id="exitNative">Exit native mode</button>
+        <label><input type="checkbox" id="autoNative" checked /> Auto: enter on connect/visible, exit on hide</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>2 · Pads</h2>
+      <p class="muted">Screen grid mirrors the hardware (top row = pads 13–16). Hit pads to see note, velocity and pressure.</p>
+      <div class="padwrap">
+        <div id="padGrid" class="padgrid"></div>
+        <div class="knobs" id="knobs"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label><input type="checkbox" id="hitFeedback" checked /> LED hit feedback (sent before any screen work)</label>
+        <span class="mono muted" id="pressureMode">Pressure mode: (press and hold a pad)</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>3 · Pad LEDs</h2>
+      <div class="row">
+        <button data-fill="127,0,0">All red</button>
+        <button data-fill="0,127,0">All green</button>
+        <button data-fill="0,0,127">All blue</button>
+        <button data-fill="127,127,127">All white</button>
+        <button data-fill="0,0,0">All off</button>
+        <button id="walk">Walk pads 1→16</button>
+        <button id="players">Player corners</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>R <input type="range" id="r" min="0" max="127" value="127" /></label>
+        <label>G <input type="range" id="g" min="0" max="127" value="40" /></label>
+        <label>B <input type="range" id="b" min="0" max="127" value="0" /></label>
+        <span id="swatch" class="swatch"></span>
+        <label>Pad <select id="rgbPad"></select></label>
+        <button id="applyRgb">Apply RGB</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Brightness cap <input type="range" id="bright" min="0" max="100" value="35" /> <span id="brightVal" class="mono">35%</span></label>
+        <label>Diff mode
+          <select id="diffMode">
+            <option value="full">full (4 msgs / changed pad)</option>
+            <option value="minimal">minimal (changed components only)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="muted">Raw state msg (ch1 vel) to all pads using current RGB:</span>
+        <button data-state="127">127 solid</button>
+        <button data-state="1">1 blink?</button>
+        <button data-state="2">2 breathe?</button>
+        <button data-state="64">64</button>
+        <button data-state="0">0 off</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Animation
+          <select id="animFps">
+            <option value="0">off</option>
+            <option value="15">rainbow 15 fps</option>
+            <option value="30">rainbow 30 fps</option>
+            <option value="60">rainbow 60 fps</option>
+          </select>
+        </label>
+        <span class="mono muted" id="rate">0 msgs/s</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>4 · Buttons</h2>
+      <p class="muted">Press hardware buttons to highlight them. Click a tile to toggle its LED bright/dim.</p>
+      <div class="row">
+        <button id="btnAllBright">All bright</button>
+        <button id="btnAllDim">All dim</button>
+        <button id="btnRgbAll">Try RGB (current colour) on every button</button>
+      </div>
+      <div class="btncols" id="buttons"></div>
+    </section>
+
+    <section>
+      <h2>5 · Guided mapping</h2>
+      <p class="muted">Walks through every pad, button, knob and pressure. Records what the device actually sends and compares with <code>src/midi/atomMap.ts</code>.</p>
+      <div class="row">
+        <button id="wizStart" class="primary">Start</button>
+        <button id="wizSkip" disabled>Skip step</button>
+        <span id="wizPrompt" class="wizprompt"></span>
+      </div>
+      <div class="overflow"><table id="wizTable"></table></div>
+    </section>
+
+    <section>
+      <h2>6 · Manual checks</h2>
+      <div id="checks" class="checks"></div>
+      <div class="row" style="margin-top:8px">
+        <label>Device <input type="text" id="deviceName" placeholder="e.g. OnePlus 12 / Chrome 141" size="34" /></label>
+        <button id="export" class="primary">Export report (JSON)</button>
+        <button id="copy">Copy report</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Log</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

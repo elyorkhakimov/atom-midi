@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MIDI Monitor</title>
+  <link rel="stylesheet" href="../shared/tools.css" />
+</head>
+<body>
+  <header>
+    <h1>MIDI Monitor</h1>
+    <nav><a href="../../">Home</a><a href="../atom-test/">ATOM test</a></nav>
+    <span id="status"></span>
+  </header>
+  <main>
+    <section>
+      <h2>Ports</h2>
+      <div class="row">
+        <button id="connect" class="primary">Connect MIDI</button>
+        <label><input type="checkbox" id="native" /> Put ATOM in native mode (exits on page hide)</label>
+      </div>
+      <div class="overflow"><table id="ports"></table></div>
+    </section>
+    <section>
+      <h2>Messages</h2>
+      <div class="row">
+        <button id="pause">Pause</button>
+        <button id="clear">Clear</button>
+        <button id="export">Export JSON</button>
+        <label><input type="checkbox" id="hidePressure" /> Hide aftertouch / CC22</label>
+        <label><input type="checkbox" id="hideRealtime" checked /> Hide clock / active sensing</label>
+      </div>
+      <p class="mono muted" id="stats"></p>
+      <p class="mono muted">t = event.timeStamp (ms) · Δ = since previous · lag = handler time − timeStamp</p>
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

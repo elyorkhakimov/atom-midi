@@ -1,0 +1,121 @@
+import {
+  NOTE_ON,
+  PAD_COUNT,
+  PAD_LED_BLUE_CHANNEL,
+  PAD_LED_GREEN_CHANNEL,
+  PAD_LED_RED_CHANNEL,
+  PAD_LED_STATE,
+  PAD_LED_STATE_CHANNEL,
+  clamp7,
+  padColorMessages,
+  padToNote,
+  type MidiBytes,
+  type Rgb,
+} from './atomMap';
+
+export type PadFrame = readonly Rgb[];
+
+export const BLACK: Rgb = { r: 0, g: 0, b: 0 };
+
+export function emptyFrame(): Rgb[] {
+  return Array.from({ length: PAD_COUNT }, () => ({ ...BLACK }));
+}
+
+function quantize(c: Rgb): Rgb {
+  return { r: clamp7(c.r), g: clamp7(c.g), b: clamp7(c.b) };
+}
+
+function isOn(c: Rgb): boolean {
+  return c.r > 0 || c.g > 0 || c.b > 0;
+}
+
+/**
+ * Messages that turn `prev` into `next`. Unchanged pads produce nothing.
+ *
+ * - `full` (default): all 4 messages for every changed pad. Known to work.
+ * - `minimal`: only the changed colour components, plus the state message when the
+ *   pad turns on or off. Fewer bytes, but relies on the ATOM applying a colour change
+ *   to a lit pad without a fresh state message (to be verified on hardware).
+ */
+export function diffPadFrame(
+  prev: PadFrame | null,
+  next: PadFrame,
+  mode: 'full' | 'minimal' = 'full',
+): MidiBytes[] {
+  const out: MidiBytes[] = [];
+  for (let pad = 0; pad < PAD_COUNT; pad++) {
+    const n = quantize(next[pad] ?? BLACK);
+    const p = prev ? quantize(prev[pad] ?? BLACK) : null;
+    if (p && p.r === n.r && p.g === n.g && p.b === n.b) continue;
+
+    if (mode === 'full' || !p) {
+      out.push(...padColorMessages(pad, n));
+      continue;
+    }
+    const note = padToNote(pad);
+    if (p.r !== n.r) out.push([NOTE_ON | PAD_LED_RED_CHANNEL, note, n.r]);
+    if (p.g !== n.g) out.push([NOTE_ON | PAD_LED_GREEN_CHANNEL, note, n.g]);
+    if (p.b !== n.b) out.push([NOTE_ON | PAD_LED_BLUE_CHANNEL, note, n.b]);
+    if (isOn(p) !== isOn(n)) {
+      out.push([NOTE_ON | PAD_LED_STATE_CHANNEL, note, isOn(n) ? PAD_LED_STATE.solid : PAD_LED_STATE.off]);
+    }
+  }
+  return out;
+}
+
+/** Scales a colour by a 0..1 brightness cap. */
+export function scaleRgb(c: Rgb, k: number): Rgb {
+  return { r: c.r * k, g: c.g * k, b: c.b * k };
+}
+
+/**
+ * Holds the desired pad colours and flushes only the differences, at most once per
+ * scheduled frame. `flushNow()` bypasses the frame wait (use it for hit feedback).
+ */
+export class LedFrameWriter {
+  private sent: Rgb[] | null = null;
+  private desired: Rgb[] = emptyFrame();
+  private scheduled = false;
+  mode: 'full' | 'minimal' = 'full';
+  brightness = 1;
+  /** Total messages sent, for rate measurement. */
+  messageCount = 0;
+
+  constructor(
+    private readonly send: (msg: MidiBytes) => void,
+    private readonly schedule: (cb: () => void) => void = (cb) => requestAnimationFrame(cb),
+  ) {}
+
+  setPad(pad: number, color: Rgb): void {
+    this.desired[pad] = { ...color };
+    this.requestFlush();
+  }
+
+  setFrame(frame: PadFrame, flush = true): void {
+    this.desired = frame.map((c) => ({ ...c }));
+    if (flush) this.requestFlush();
+  }
+
+  /** Forget what the device shows (e.g. after reconnect); the next flush resends everything. */
+  invalidate(flush = true): void {
+    this.sent = null;
+    if (flush) this.requestFlush();
+  }
+
+  flushNow(): void {
+    const target = this.desired.map((c) => quantize(scaleRgb(c, this.brightness)));
+    const msgs = diffPadFrame(this.sent, target, this.mode);
+    for (const m of msgs) this.send(m);
+    this.messageCount += msgs.length;
+    this.sent = target;
+  }
+
+  private requestFlush(): void {
+    if (this.scheduled) return;
+    this.scheduled = true;
+    this.schedule(() => {
+      this.scheduled = false;
+      this.flushNow();
+    });
+  }
+}
