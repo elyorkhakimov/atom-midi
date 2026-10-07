@@ -34,3 +34,4 @@
 td.pass { color: var(--ok); }
 td.fail { color: var(--bad); }
 td.skip { color: var(--muted); }
+.btn .rgbcheck { font-size: 12px; color: var(--muted); margin-top: 4px; }

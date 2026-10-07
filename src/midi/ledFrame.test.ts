@@ -53,15 +53,23 @@ describe('LedFrameWriter', () => {
   function setup() {
     const sent: MidiBytes[] = [];
     const queue: (() => void)[] = [];
-    const w = new LedFrameWriter((m) => sent.push(m), (cb) => queue.push(cb));
+    let batches = 0;
+    const w = new LedFrameWriter(
+      (batch) => {
+        batches++;
+        sent.push(...batch);
+      },
+      (cb) => queue.push(cb),
+    );
     const runFrame = () => queue.splice(0).forEach((cb) => cb());
-    return { w, sent, queue, runFrame };
+    return { w, sent, queue, runFrame, batches: () => batches };
   }
 
   it('coalesces many changes into one flush per frame', () => {
-    const { w, sent, queue, runFrame } = setup();
+    const { w, sent, queue, runFrame, batches } = setup();
     w.flushNow(); // initial full sync
     sent.length = 0;
+    const before = batches();
     w.setPad(0, { r: 10, g: 0, b: 0 });
     w.setPad(0, { r: 20, g: 0, b: 0 });
     w.setPad(1, { r: 0, g: 5, b: 0 });
@@ -69,6 +77,7 @@ describe('LedFrameWriter', () => {
     expect(sent).toHaveLength(0);
     runFrame();
     expect(sent).toHaveLength(8);
+    expect(batches() - before).toBe(1);
     expect(sent[0]).toEqual([0x91, 36, 20]);
   });
 
@@ -78,6 +87,13 @@ describe('LedFrameWriter', () => {
     w.setPad(0, { r: 127, g: 0, b: 0 });
     w.flushNow();
     expect(sent[0]).toEqual([0x91, 36, 64]);
+  });
+
+  it('sends nothing when nothing changed', () => {
+    const { w, batches } = setup();
+    w.flushNow();
+    w.flushNow();
+    expect(batches()).toBe(1);
   });
 
   it('invalidate resends everything', () => {

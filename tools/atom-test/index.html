@@ -36,7 +36,14 @@
         <div class="knobs" id="knobs"></div>
       </div>
       <div class="row" style="margin-top:8px">
-        <label><input type="checkbox" id="hitFeedback" checked /> LED hit feedback (sent before any screen work)</label>
+        <label>LED hit feedback
+          <select id="hitMode">
+            <option value="batched">batched — velocity colour, 4 msgs in 1 send</option>
+            <option value="stateFirst">state-first — 1 msg (preloaded white), then colour</option>
+            <option value="off">off</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="sound" checked /> Test sound on hit</label>
         <span class="mono muted" id="pressureMode">Pressure mode: (press and hold a pad)</span>
       </div>
     </section>
@@ -92,11 +99,13 @@
 
     <section>
       <h2>4 · Buttons</h2>
-      <p class="muted">Press hardware buttons to highlight them. Click a tile to toggle its LED bright/dim.</p>
+      <p class="muted">Press hardware buttons to highlight them. Click a tile to toggle its LED bright/dim.
+        Start “Try RGB…”: each tile's border shows the colour sent. Tick <b>RGB</b> on every hardware button
+        whose colour keeps changing, untick the rest.</p>
       <div class="row">
         <button id="btnAllBright">All bright</button>
         <button id="btnAllDim">All dim</button>
-        <button id="btnRgbAll">Try RGB (current colour) on every button</button>
+        <button id="btnRgbAll">Try RGB: cycle random colours on every button</button>
       </div>
       <div class="btncols" id="buttons"></div>
     </section>
@@ -106,6 +115,7 @@
       <p class="muted">Walks through every pad, button, knob and pressure. Records what the device actually sends and compares with <code>src/midi/atomMap.ts</code>.</p>
       <div class="row">
         <button id="wizStart" class="primary">Start</button>
+        <button id="wizBack" disabled>Back</button>
         <button id="wizSkip" disabled>Skip step</button>
         <span id="wizPrompt" class="wizprompt"></span>
       </div>

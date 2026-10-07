@@ -71,6 +71,8 @@ export function scaleRgb(c: Rgb, k: number): Rgb {
 /**
  * Holds the desired pad colours and flushes only the differences, at most once per
  * scheduled frame. `flushNow()` bypasses the frame wait (use it for hit feedback).
+ * Each flush is handed to `send` as one batch so it can go out in a single
+ * `MIDIOutput.send()` (one USB packet stream instead of one call per message).
  */
 export class LedFrameWriter {
   private sent: Rgb[] | null = null;
@@ -82,7 +84,7 @@ export class LedFrameWriter {
   messageCount = 0;
 
   constructor(
-    private readonly send: (msg: MidiBytes) => void,
+    private readonly send: (batch: MidiBytes[]) => void,
     private readonly schedule: (cb: () => void) => void = (cb) => requestAnimationFrame(cb),
   ) {}
 
@@ -105,7 +107,7 @@ export class LedFrameWriter {
   flushNow(): void {
     const target = this.desired.map((c) => quantize(scaleRgb(c, this.brightness)));
     const msgs = diffPadFrame(this.sent, target, this.mode);
-    for (const m of msgs) this.send(m);
+    if (msgs.length) this.send(msgs);
     this.messageCount += msgs.length;
     this.sent = target;
   }

@@ -75,8 +75,8 @@ export const PAD_LED_GREEN_CHANNEL = 2;
 export const PAD_LED_BLUE_CHANNEL = 3;
 
 /**
- * Values for the state message (ch 0). atompad reports only 127 lights the pad on
- * fw 3.00; padbound claims 1 = blink and 2 = breathe. The atom-test page checks both.
+ * Values for the state message (ch 0). Hardware blink (1) and breathe (2) confirmed
+ * on our unit (2026-10-07); other values 1–126 are off. atompad's fw 3.00 note differs.
  */
 export const PAD_LED_STATE = {
   off: 0,
@@ -130,7 +130,10 @@ export type ButtonId =
   | 'up' | 'down' | 'left' | 'right' | 'select' | 'zoom'
   | 'click' | 'record' | 'play' | 'stop';
 
-/** In physical order, top to bottom: left column, then right column. */
+/**
+ * In physical order, top to bottom: left column, then right column.
+ * `led: 'rgb'` follows atompad; hardware shows more buttons accept RGB (list pending).
+ */
 export const BUTTONS: readonly ButtonDef[] = [
   { id: 'setup', cc: 86, label: 'Setup', side: 'left', led: 'mono' },
   { id: 'setLoop', cc: 85, label: 'Set Loop', side: 'left', led: 'mono' },

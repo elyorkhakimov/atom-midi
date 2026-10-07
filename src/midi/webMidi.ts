@@ -6,11 +6,16 @@ export function webMidiSupported(): boolean {
 
 /** No SysEx: the ATOM's native mode only needs channel messages. */
 export async function requestMidi(): Promise<MIDIAccess> {
+  // Checked first: Chrome hides requestMIDIAccess entirely on insecure origins
+  // (e.g. http://192.168.x.x), which otherwise looks like "browser unsupported".
+  if (!window.isSecureContext) {
+    throw new Error(
+      `Web MIDI needs a secure context, and ${location.origin} isn't one. ` +
+        'Open the page as https://… or http://localhost (on a phone: adb reverse tcp:5173 tcp:5173, then localhost:5173).',
+    );
+  }
   if (!webMidiSupported()) {
     throw new Error('Web MIDI is not available in this browser. Use Chrome or Edge (Safari is unsupported).');
-  }
-  if (!window.isSecureContext) {
-    throw new Error('Web MIDI needs a secure context (https or localhost).');
   }
   return navigator.requestMIDIAccess({ sysex: false });
 }
@@ -35,8 +40,9 @@ export function findAtomPorts(access: MIDIAccess): AtomPorts | null {
   return input && output ? { input, output } : null;
 }
 
+/** Sends several complete messages in one `send()` call (allowed by the Web MIDI spec). */
 export function sendAll(output: MIDIOutput, messages: readonly MidiBytes[]): void {
-  for (const m of messages) output.send(m as number[]);
+  if (messages.length) output.send(messages.flat());
 }
 
 export function portLabel(p: MIDIPort): string {

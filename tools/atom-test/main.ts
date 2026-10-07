@@ -4,6 +4,10 @@ import {
   ENCODER_CCS,
   NOTE_ON,
   PAD_COUNT,
+  PAD_LED_BLUE_CHANNEL,
+  PAD_LED_GREEN_CHANNEL,
+  PAD_LED_RED_CHANNEL,
+  PAD_LED_STATE,
   PAD_LED_STATE_CHANNEL,
   PRESSURE_CC,
   buttonColorMessages,
@@ -24,6 +28,7 @@ import { describeMidi, toHex } from '../../src/midi/describe';
 import { LedFrameWriter, emptyFrame, scaleRgb } from '../../src/midi/ledFrame';
 import { listInputs, listOutputs, portLabel, requestMidi, sendAll } from '../../src/midi/webMidi';
 import { $, appendLog, deviceSummary, download, h, pill } from '../shared/dom';
+import { TestSynth } from '../shared/testSynth';
 
 const PLAYER_COLORS: Rgb[] = [
   { r: 127, g: 0, b: 0 }, // red
@@ -46,7 +51,11 @@ let pressureMode: 'poly' | 'channel' | 'cc22' | null = null;
 const encoderTotals = [0, 0, 0, 0];
 const encoderMaxDelta = [0, 0, 0, 0];
 const buttonBright = new Map<number, boolean>();
+/** Full hex of unrecognised messages → count. */
 const unknownSeen = new Map<string, number>();
+const portsSeen = new Set<string>();
+const buttonRgbWorks = new Map<number, HTMLInputElement>();
+let synth: TestSynth | null = null;
 const lag = { n: 0, sum: 0, max: 0, zeroOrFuture: 0 };
 let actionGen = 0; // cancels running walks/animations
 
@@ -55,13 +64,16 @@ const statusEl = $('#status');
 const inSel = $('#inSel') as HTMLSelectElement;
 const outSel = $('#outSel') as HTMLSelectElement;
 const autoNative = $('#autoNative') as HTMLInputElement;
-const hitFeedback = $('#hitFeedback') as HTMLInputElement;
+const hitModeSel = $('#hitMode') as HTMLSelectElement;
+const soundBox = $('#sound') as HTMLInputElement;
+type HitMode = 'batched' | 'stateFirst' | 'off';
+const hitMode = (): HitMode => hitModeSel.value as HitMode;
 
 function send(msg: MidiBytes): void {
   output?.send(msg as number[]);
 }
 
-const writer = new LedFrameWriter(send);
+const writer = new LedFrameWriter((batch) => output && sendAll(output, batch));
 writer.brightness = 0.35;
 
 function logLine(text: string): void {
@@ -104,6 +116,7 @@ function bindPorts(): void {
   if (input && input !== newIn) input.onmidimessage = null;
   input = newIn;
   if (input) input.onmidimessage = onMidiMessage;
+  for (const p of [newIn, newOut]) if (p) portsSeen.add(`${p.type}: ${portLabel(p)}`);
   const outChanged = newOut !== output;
   output = newOut;
   if (outChanged) nativeActive = false;
@@ -126,6 +139,9 @@ function setNative(on: boolean): void {
 
 $('#connect').addEventListener('click', async () => {
   try {
+    // Same user gesture unlocks audio for the test sound.
+    synth ??= new TestSynth();
+    void synth.resume().then(() => logLine(`Audio: ${JSON.stringify(synth!.latencyInfo())}`));
     access = await requestMidi();
     access.onstatechange = (e) => {
       const p = (e as MIDIConnectionEvent).port;
@@ -250,6 +266,10 @@ for (const b of BUTTONS) {
   const el = h('div', { className: 'btn', title: 'Click to toggle LED' },
     h('div', { className: 'name', textContent: b.label }),
     h('div', { className: 'meta', textContent: `CC ${b.cc} · ${b.side} · LED ${b.led}` }));
+  const rgbBox = h('input', { type: 'checkbox', checked: b.led === 'rgb' });
+  rgbBox.addEventListener('click', (e) => e.stopPropagation());
+  buttonRgbWorks.set(b.cc, rgbBox);
+  el.append(h('label', { className: 'rgbcheck' }, rgbBox, 'RGB'));
   el.addEventListener('click', () => setButtonLed(b, !(buttonBright.get(b.cc) ?? false)));
   buttonEls.set(b.cc, el);
   $('#buttons').append(el);
@@ -267,11 +287,43 @@ function setButtonLed(b: ButtonDef, bright: boolean): void {
 }
 $('#btnAllBright').addEventListener('click', () => BUTTONS.forEach((b) => setButtonLed(b, true)));
 $('#btnAllDim').addEventListener('click', () => BUTTONS.forEach((b) => setButtonLed(b, false)));
-$('#btnRgbAll').addEventListener('click', () => {
+// Toggle: every button gets its own random hue, re-rolled every 700 ms at full
+// brightness, so RGB buttons visibly change colour and mono ones just stay lit.
+let rgbCycleTimer: ReturnType<typeof setInterval> | null = null;
+const btnRgbAll = $('#btnRgbAll') as HTMLButtonElement;
+
+function cycleButtonColors(): void {
   if (!output) return;
-  const c = scaleRgb(sliderColor(), writer.brightness);
-  for (const b of BUTTONS) sendAll(output, buttonColorMessages(b.cc, c));
-  logLine('→ RGB sent to every button CC (ch 2/3/4); note which ones change colour');
+  for (const b of BUTTONS) {
+    const c = hsv(Math.random() * 360);
+    sendAll(output, buttonColorMessages(b.cc, c));
+    const tile = buttonEls.get(b.cc);
+    if (tile) tile.style.borderColor = cssColor(c);
+  }
+}
+
+function stopButtonColorCycle(): void {
+  if (rgbCycleTimer) clearInterval(rgbCycleTimer);
+  rgbCycleTimer = null;
+  btnRgbAll.textContent = 'Try RGB: cycle random colours on every button';
+  for (const b of BUTTONS) {
+    if (output) sendAll(output, buttonColorMessages(b.cc, { r: 0, g: 0, b: 0 }));
+    const tile = buttonEls.get(b.cc);
+    if (tile) tile.style.borderColor = '';
+    if (buttonBright.get(b.cc)) setButtonLed(b, true);
+  }
+}
+
+btnRgbAll.addEventListener('click', () => {
+  if (rgbCycleTimer) {
+    stopButtonColorCycle();
+    return;
+  }
+  if (!output) return;
+  cycleButtonColors();
+  rgbCycleTimer = setInterval(cycleButtonColors, 700);
+  btnRgbAll.textContent = 'Stop RGB cycle';
+  logLine('→ cycling random RGB on every button (CC on ch 2/3/4); tick RGB on the ones that change colour');
 });
 
 // ---------------------------------------------------------------------------
@@ -407,12 +459,21 @@ function onMidiMessage(e: MIDIMessageEvent): void {
   const msg = parseAtomMessage(data);
 
   // LED feedback first, before any other work.
-  if (msg.kind === 'padDown' && hitFeedback.checked) {
+  const mode = hitMode();
+  const preloaded = mode === 'stateFirst' && 'pad' in msg && isDark(base[msg.pad]!);
+  if (msg.kind === 'padDown' && preloaded && output) {
+    // Bypasses the writer, which keeps believing this pad is dark (its base colour).
+    send([NOTE_ON | PAD_LED_STATE_CHANNEL, padToNote(msg.pad), PAD_LED_STATE.solid]);
+    sendAll(output, padColorMessages(msg.pad, scaleRgb(velocityColor(msg.velocity), writer.brightness)));
+  } else if (msg.kind === 'padUp' && preloaded) {
+    preloadPad(msg.pad);
+  } else if (msg.kind === 'padDown' && mode !== 'off') {
     writer.setPad(msg.pad, velocityColor(msg.velocity));
     writer.flushNow();
-  } else if (msg.kind === 'padUp' && hitFeedback.checked) {
+  } else if (msg.kind === 'padUp' && mode !== 'off') {
     writer.setPad(msg.pad, base[msg.pad]!);
   }
+  if (msg.kind === 'padDown' && soundBox.checked) synth?.hit(msg.pad, msg.velocity);
 
   const lagMs = performance.now() - t;
   if (t <= 0 || lagMs < 0) lag.zeroOrFuture++;
@@ -463,7 +524,7 @@ function onMidiMessage(e: MIDIMessageEvent): void {
       break;
     }
     case 'unknown': {
-      const key = toHex(Array.from(data).slice(0, 2));
+      const key = toHex(data);
       unknownSeen.set(key, (unknownSeen.get(key) ?? 0) + 1);
       break;
     }
@@ -481,7 +542,8 @@ function setPressureMode(mode: 'poly' | 'channel' | 'cc22'): void {
   $('#pressureMode').textContent =
     mode === 'poly'
       ? 'Pressure mode: polyphonic aftertouch ✓'
-      : `Pressure mode: ${mode === 'channel' ? 'channel aftertouch' : 'CC 22'} — for per-pad pressure hold Setup, tap pad 7, release`;
+      : `Pressure mode: ${mode === 'channel' ? 'channel aftertouch (one value for all pads)' : 'CC 22'} — for per-pad pressure: ` +
+        'Exit native mode, hold Setup, tap pad 7, release Setup, then Enter native mode again';
   renderStatus();
 }
 
@@ -504,6 +566,14 @@ interface StepResult {
 const wizPrompt = $('#wizPrompt');
 const wizTable = $('#wizTable') as HTMLTableElement;
 const wizSkip = $('#wizSkip') as HTMLButtonElement;
+const wizBack = $('#wizBack') as HTMLButtonElement;
+
+/**
+ * After a step is recorded, further messages from the same control (same status byte
+ * and note/CC) are ignored until it has been quiet this long. A knob spin sends a
+ * burst of CCs, and a pad can double-trigger; neither should answer the next step.
+ */
+const WIZ_REPEAT_QUIET_MS = 500;
 
 function stepName(s: Step): string {
   switch (s.kind) {
@@ -531,6 +601,8 @@ const wizard = {
   steps: [] as Step[],
   index: -1,
   results: [] as StepResult[],
+  lastKey: -1,
+  ignoreUntil: 0,
 
   get active(): boolean {
     return this.index >= 0 && this.index < this.steps.length;
@@ -546,16 +618,17 @@ const wizard = {
     ];
     this.results = [];
     this.index = 0;
-    wizSkip.disabled = false;
+    this.lastKey = -1;
     this.show();
   },
 
   show(): void {
     document.querySelectorAll('.wiz').forEach((el) => el.classList.remove('wiz'));
     setBaseFrame(emptyFrame());
+    wizSkip.disabled = !this.active;
+    wizBack.disabled = this.results.length === 0;
     if (!this.active) {
       wizPrompt.textContent = this.results.length ? 'Done ✓ — see table, then export the report below.' : '';
-      wizSkip.disabled = true;
       return;
     }
     const s = this.steps[this.index]!;
@@ -572,6 +645,16 @@ const wizard = {
     const s = this.steps[this.index]!;
     this.results.push({ step: stepName(s), expected: stepExpected(s), actual, result: pass ? 'pass' : 'fail' });
     this.index++;
+    this.renderTable();
+    this.show();
+  },
+
+  /** Undo the last recorded step so it can be redone. */
+  back(): void {
+    if (this.results.length === 0) return;
+    this.results.pop();
+    this.index = this.results.length;
+    this.lastKey = -1;
     this.renderTable();
     this.show();
   },
@@ -597,6 +680,28 @@ const wizard = {
     const isNoteOn = type === NOTE_ON && d2 > 0;
     const isCcPress = type === 0xb0 && d2 > 0 && encoderIndex(d1) === null && d1 !== PRESSURE_CC;
 
+    // Unexplained BF 7F (CC 127, ch 16) from the device: never an answer to a step.
+    if (data[0] === 0xbf && d1 === 0x7f) return false;
+
+    const now = performance.now();
+    const key = ((data[0] ?? 0) << 8) | d1;
+    if (key === this.lastKey && now < this.ignoreUntil) {
+      this.ignoreUntil = now + WIZ_REPEAT_QUIET_MS;
+      return false;
+    }
+    const consumed = this.match(s, desc, { type, ch, d1, d2, isNoteOn, isCcPress });
+    if (consumed) {
+      this.lastKey = key;
+      this.ignoreUntil = now + WIZ_REPEAT_QUIET_MS;
+    }
+    return consumed;
+  },
+
+  match(
+    s: Step,
+    desc: string,
+    { type, ch, d1, d2, isNoteOn, isCcPress }: { type: number; ch: number; d1: number; d2: number; isNoteOn: boolean; isCcPress: boolean },
+  ): boolean {
     switch (s.kind) {
       case 'pad':
         if (!isNoteOn) return false;
@@ -634,6 +739,7 @@ const wizard = {
 
 $('#wizStart').addEventListener('click', () => wizard.start());
 wizSkip.addEventListener('click', () => wizard.skip());
+wizBack.addEventListener('click', () => wizard.back());
 
 // ---------------------------------------------------------------------------
 // Manual checks and report
@@ -673,7 +779,10 @@ function report(): object {
     date: new Date().toISOString(),
     device: ($('#deviceName') as HTMLInputElement).value,
     userAgent: deviceSummary(),
-    ports: { input: input?.name ?? null, output: output?.name ?? null, manufacturer: input?.manufacturer ?? null },
+    ports: { current: { input: input?.name ?? null, output: output?.name ?? null }, seen: [...portsSeen] },
+    audio: synth?.latencyInfo() ?? null,
+    settings: { hitMode: hitMode(), brightness: writer.brightness, diffMode: writer.mode },
+    buttonsWithRgb: BUTTONS.filter((b) => buttonRgbWorks.get(b.cc)?.checked).map((b) => `${b.label} (CC ${b.cc})`),
     pressureMode,
     handlerLagMs: { mean: lag.n ? +(lag.sum / lag.n).toFixed(2) : null, max: +lag.max.toFixed(2), samples: lag.n, zeroOrFutureTimestamps: lag.zeroOrFuture },
     encoderMaxDelta,
@@ -691,6 +800,36 @@ $('#export').addEventListener('click', () => {
 $('#copy').addEventListener('click', async () => {
   await navigator.clipboard.writeText(JSON.stringify(report(), null, 2));
   logLine('Report copied to clipboard');
+});
+
+// state-first hit mode: RGB for a white hit is preloaded on dark pads with no state
+// message, so a hit only needs the 1-message "state on". Whether RGB on an unlit pad
+// stays dark is itself something to check on the hardware.
+function isDark(c: Rgb): boolean {
+  return !(c.r || c.g || c.b);
+}
+
+/** Puts white RGB on a dark pad and switches its state off. The writer isn't told. */
+function preloadPad(pad: number): void {
+  if (!isDark(base[pad]!) || !output) return;
+  const v = Math.round(127 * writer.brightness);
+  const note = padToNote(pad);
+  sendAll(output, [
+    [NOTE_ON | PAD_LED_RED_CHANNEL, note, v],
+    [NOTE_ON | PAD_LED_GREEN_CHANNEL, note, v],
+    [NOTE_ON | PAD_LED_BLUE_CHANNEL, note, v],
+    [NOTE_ON | PAD_LED_STATE_CHANNEL, note, PAD_LED_STATE.off],
+  ]);
+}
+
+hitModeSel.addEventListener('change', () => {
+  writer.flushNow();
+  if (hitMode() === 'stateFirst') {
+    for (let pad = 0; pad < PAD_COUNT; pad++) preloadPad(pad);
+    logLine('state-first: preloaded white RGB on dark pads (they should stay dark)');
+  } else {
+    writer.invalidate(); // clear preloads
+  }
 });
 
 renderStatus();

@@ -1,0 +1,314 @@
+{
+  "date": "2026-10-07T05:17:27.333Z",
+  "device": "mac mini brave",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+  "ports": {
+    "current": {
+      "input": "ATOM",
+      "output": "ATOM"
+    },
+    "seen": [
+      "input: ATOM — PreSonus",
+      "output: ATOM — PreSonus"
+    ]
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "baseLatencyMs": 5.3,
+    "outputLatencyMs": 16
+  },
+  "settings": {
+    "hitMode": "batched",
+    "brightness": 0.35,
+    "diffMode": "full"
+  },
+  "buttonsWithRgb": [
+    "Preset (CC 27)",
+    "Bank (CC 26)",
+    "Play (CC 109)"
+  ],
+  "pressureMode": "poly",
+  "handlerLagMs": {
+    "mean": 0.57,
+    "max": 30,
+    "samples": 4276,
+    "zeroOrFutureTimestamps": 0
+  },
+  "encoderMaxDelta": [
+    1,
+    6,
+    1,
+    1
+  ],
+  "unknownMessages": {
+    "BF 7F 7F": 4
+  },
+  "mapping": [
+    {
+      "step": "Pad 1 (row 1 from bottom, col 1)",
+      "expected": "Note On ch1 note 36",
+      "actual": "Note On   ch1 note 36 (C2) vel 62 [90 24 3E]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 2 (row 1 from bottom, col 2)",
+      "expected": "Note On ch1 note 37",
+      "actual": "Note On   ch1 note 37 (C#2) vel 34 [90 25 22]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 3 (row 1 from bottom, col 3)",
+      "expected": "Note On ch1 note 38",
+      "actual": "Note On   ch1 note 38 (D2) vel 29 [90 26 1D]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 4 (row 1 from bottom, col 4)",
+      "expected": "Note On ch1 note 39",
+      "actual": "Note On   ch1 note 39 (D#2) vel 25 [90 27 19]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 5 (row 2 from bottom, col 1)",
+      "expected": "Note On ch1 note 40",
+      "actual": "Note On   ch1 note 40 (E2) vel 55 [90 28 37]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 6 (row 2 from bottom, col 2)",
+      "expected": "Note On ch1 note 41",
+      "actual": "Note On   ch1 note 41 (F2) vel 44 [90 29 2C]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 7 (row 2 from bottom, col 3)",
+      "expected": "Note On ch1 note 42",
+      "actual": "Note On   ch1 note 42 (F#2) vel 28 [90 2A 1C]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 8 (row 2 from bottom, col 4)",
+      "expected": "Note On ch1 note 43",
+      "actual": "Note On   ch1 note 43 (G2) vel 51 [90 2B 33]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 9 (row 3 from bottom, col 1)",
+      "expected": "Note On ch1 note 44",
+      "actual": "Note On   ch1 note 44 (G#2) vel 77 [90 2C 4D]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 10 (row 3 from bottom, col 2)",
+      "expected": "Note On ch1 note 45",
+      "actual": "Note On   ch1 note 45 (A2) vel 59 [90 2D 3B]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 11 (row 3 from bottom, col 3)",
+      "expected": "Note On ch1 note 46",
+      "actual": "Note On   ch1 note 46 (A#2) vel 24 [90 2E 18]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 12 (row 3 from bottom, col 4)",
+      "expected": "Note On ch1 note 47",
+      "actual": "Note On   ch1 note 47 (B2) vel 52 [90 2F 34]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 13 (row 4 from bottom, col 1)",
+      "expected": "Note On ch1 note 48",
+      "actual": "Note On   ch1 note 48 (C3) vel 68 [90 30 44]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 14 (row 4 from bottom, col 2)",
+      "expected": "Note On ch1 note 49",
+      "actual": "Note On   ch1 note 49 (C#3) vel 46 [90 31 2E]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 15 (row 4 from bottom, col 3)",
+      "expected": "Note On ch1 note 50",
+      "actual": "Note On   ch1 note 50 (D3) vel 43 [90 32 2B]",
+      "result": "pass"
+    },
+    {
+      "step": "Pad 16 (row 4 from bottom, col 4)",
+      "expected": "Note On ch1 note 51",
+      "actual": "Note On   ch1 note 51 (D#3) vel 37 [90 33 25]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Setup (left column)",
+      "expected": "CC 86 ch1 = 127",
+      "actual": "CC        ch1 cc 86 value 127 [B0 56 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Set Loop (left column)",
+      "expected": "CC 85 ch1 = 127",
+      "actual": "CC        ch1 cc 85 value 127 [B0 55 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Editor (left column)",
+      "expected": "CC 31 ch1 = 127",
+      "actual": "CC        ch1 cc 31 value 127 [B0 1F 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Nudge (left column)",
+      "expected": "CC 30 ch1 = 127",
+      "actual": "CC        ch1 cc 30 value 127 [B0 1E 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Show/Hide (left column)",
+      "expected": "CC 29 ch1 = 127",
+      "actual": "CC        ch1 cc 29 value 127 [B0 1D 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Preset (left column)",
+      "expected": "CC 27 ch1 = 127",
+      "actual": "CC        ch1 cc 27 value 127 [B0 1B 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Bank (left column)",
+      "expected": "CC 26 ch1 = 127",
+      "actual": "CC        ch1 cc 26 value 127 [B0 1A 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Full Level (left column)",
+      "expected": "CC 25 ch1 = 127",
+      "actual": "CC        ch1 cc 25 value 127 [B0 19 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Note Repeat (left column)",
+      "expected": "CC 24 ch1 = 127",
+      "actual": "CC        ch1 cc 24 value 127 [B0 18 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Shift (left column)",
+      "expected": "CC 32 ch1 = 127",
+      "actual": "CC        ch1 cc 32 value 127 [B0 20 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Up (right column)",
+      "expected": "CC 87 ch1 = 127",
+      "actual": "CC        ch1 cc 87 value 127 [B0 57 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Down (right column)",
+      "expected": "CC 89 ch1 = 127",
+      "actual": "CC        ch1 cc 89 value 127 [B0 59 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Left (right column)",
+      "expected": "CC 90 ch1 = 127",
+      "actual": "CC        ch1 cc 90 value 127 [B0 5A 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Right (right column)",
+      "expected": "CC 102 ch1 = 127",
+      "actual": "CC        ch1 cc 102 value 127 [B0 66 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Select (right column)",
+      "expected": "CC 103 ch1 = 127",
+      "actual": "CC        ch1 cc 103 value 127 [B0 67 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Zoom (right column)",
+      "expected": "CC 104 ch1 = 127",
+      "actual": "CC        ch1 cc 104 value 127 [B0 68 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Click (right column)",
+      "expected": "CC 105 ch1 = 127",
+      "actual": "CC        ch1 cc 105 value 127 [B0 69 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Record (right column)",
+      "expected": "CC 107 ch1 = 127",
+      "actual": "CC        ch1 cc 107 value 127 [B0 6B 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Play (right column)",
+      "expected": "CC 109 ch1 = 127",
+      "actual": "CC        ch1 cc 109 value 127 [B0 6D 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Button Stop (right column)",
+      "expected": "CC 111 ch1 = 127",
+      "actual": "CC        ch1 cc 111 value 127 [B0 6F 7F]",
+      "result": "pass"
+    },
+    {
+      "step": "Knob 1 clockwise",
+      "expected": "CC 14 value 1–63",
+      "actual": "CC        ch1 cc 14 value 1 [B0 0E 01]",
+      "result": "pass"
+    },
+    {
+      "step": "Knob 2 clockwise",
+      "expected": "CC 15 value 1–63",
+      "actual": "CC        ch1 cc 15 value 1 [B0 0F 01]",
+      "result": "pass"
+    },
+    {
+      "step": "Knob 3 clockwise",
+      "expected": "CC 16 value 1–63",
+      "actual": "CC        ch1 cc 16 value 1 [B0 10 01]",
+      "result": "pass"
+    },
+    {
+      "step": "Knob 4 clockwise",
+      "expected": "CC 17 value 1–63",
+      "actual": "CC        ch1 cc 17 value 1 [B0 11 01]",
+      "result": "pass"
+    },
+    {
+      "step": "Pressure: press and hold any pad firmly",
+      "expected": "Poly AT (0xA0)",
+      "actual": "Poly AT   ch1 note 41 (F2) pressure 93 [A0 29 5D]",
+      "result": "pass"
+    }
+  ],
+  "checks": {
+    "native": true,
+    "fill": true,
+    "walk": true,
+    "rgb": true,
+    "state1": true,
+    "state2": true,
+    "state64": true,
+    "minimal": true,
+    "anim30": true,
+    "anim60": true,
+    "hit": true,
+    "btnLed": true,
+    "btnRgb": false,
+    "hide": true,
+    "show": true,
+    "replug": true,
+    "poly": true
+  },
+  "notes": "I think all NAV buttons also change rgb light\nwith setup+7 now per pad pressure works"
+}
