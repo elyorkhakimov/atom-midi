@@ -2,19 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1116" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <title>Pad Games</title>
-  <link rel="stylesheet" href="./tools/shared/tools.css" />
 </head>
 <body>
-  <header><h1>Pad Games</h1><span class="muted">Phase 0 — protocol test harness</span></header>
-  <main>
-    <section>
-      <h2>Tools</h2>
-      <p><a href="./tools/atom-test/">ATOM protocol test</a> — native mode, pad/button LEDs, guided mapping, device report.</p>
-      <p><a href="./tools/midi-monitor/">MIDI monitor</a> — list ports, log every incoming message with timestamps.</p>
-      <p class="muted">Requires Chrome or Edge (Safari has no Web MIDI). Use wired audio.</p>
-    </section>
-  </main>
+  <div id="app"></div>
+  <script type="module" src="./src/main.tsx"></script>
 </body>
 </html>

@@ -105,3 +105,17 @@ describe('LedFrameWriter', () => {
     expect(sent).toHaveLength(64);
   });
 });
+
+describe('hardware blink/breathe', () => {
+  it('sends the state value for blink and breathe, and a state change alone', () => {
+    const solid = emptyFrame();
+    solid[0] = { r: 100, g: 0, b: 0 };
+    const blink = emptyFrame();
+    blink[0] = { r: 100, g: 0, b: 0, mode: 'blink' };
+    expect(diffPadFrame(null, blink)[3 + 0]).toEqual([0x90, 36, 1]);
+    expect(diffPadFrame(solid, blink, 'minimal')).toEqual([[0x90, 36, 1]]);
+    const breathe = emptyFrame();
+    breathe[0] = { r: 100, g: 0, b: 0, mode: 'breathe' };
+    expect(diffPadFrame(blink, breathe, 'minimal')).toEqual([[0x90, 36, 2]]);
+  });
+});

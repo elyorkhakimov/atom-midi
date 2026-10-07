@@ -13,29 +13,33 @@ import {
   type Rgb,
 } from './atomMap';
 
-export type PadFrame = readonly Rgb[];
+/** A pad's LED: colour plus an optional hardware animation (blink/breathe verified on our unit). */
+export interface PadLed extends Rgb {
+  mode?: 'solid' | 'blink' | 'breathe';
+}
+
+export type PadFrame = readonly PadLed[];
 
 export const BLACK: Rgb = { r: 0, g: 0, b: 0 };
 
-export function emptyFrame(): Rgb[] {
+export function emptyFrame(): PadLed[] {
   return Array.from({ length: PAD_COUNT }, () => ({ ...BLACK }));
 }
 
-function quantize(c: Rgb): Rgb {
-  return { r: clamp7(c.r), g: clamp7(c.g), b: clamp7(c.b) };
+function quantize(c: PadLed): Required<PadLed> {
+  return { r: clamp7(c.r), g: clamp7(c.g), b: clamp7(c.b), mode: c.mode ?? 'solid' };
 }
 
-function isOn(c: Rgb): boolean {
-  return c.r > 0 || c.g > 0 || c.b > 0;
+function stateOf(c: Required<PadLed>): number {
+  return c.r || c.g || c.b ? PAD_LED_STATE[c.mode] : PAD_LED_STATE.off;
 }
 
 /**
  * Messages that turn `prev` into `next`. Unchanged pads produce nothing.
  *
- * - `full` (default): all 4 messages for every changed pad. Known to work.
+ * - `full` (default): all 4 messages for every changed pad.
  * - `minimal`: only the changed colour components, plus the state message when the
- *   pad turns on or off. Fewer bytes, but relies on the ATOM applying a colour change
- *   to a lit pad without a fresh state message (to be verified on hardware).
+ *   state changes (on/off/blink/breathe). Verified on hardware 2026-10-07.
  */
 export function diffPadFrame(
   prev: PadFrame | null,
@@ -46,26 +50,24 @@ export function diffPadFrame(
   for (let pad = 0; pad < PAD_COUNT; pad++) {
     const n = quantize(next[pad] ?? BLACK);
     const p = prev ? quantize(prev[pad] ?? BLACK) : null;
-    if (p && p.r === n.r && p.g === n.g && p.b === n.b) continue;
+    if (p && p.r === n.r && p.g === n.g && p.b === n.b && stateOf(p) === stateOf(n)) continue;
 
     if (mode === 'full' || !p) {
-      out.push(...padColorMessages(pad, n));
+      out.push(...padColorMessages(pad, n, stateOf(n)));
       continue;
     }
     const note = padToNote(pad);
     if (p.r !== n.r) out.push([NOTE_ON | PAD_LED_RED_CHANNEL, note, n.r]);
     if (p.g !== n.g) out.push([NOTE_ON | PAD_LED_GREEN_CHANNEL, note, n.g]);
     if (p.b !== n.b) out.push([NOTE_ON | PAD_LED_BLUE_CHANNEL, note, n.b]);
-    if (isOn(p) !== isOn(n)) {
-      out.push([NOTE_ON | PAD_LED_STATE_CHANNEL, note, isOn(n) ? PAD_LED_STATE.solid : PAD_LED_STATE.off]);
-    }
+    if (stateOf(p) !== stateOf(n)) out.push([NOTE_ON | PAD_LED_STATE_CHANNEL, note, stateOf(n)]);
   }
   return out;
 }
 
 /** Scales a colour by a 0..1 brightness cap. */
-export function scaleRgb(c: Rgb, k: number): Rgb {
-  return { r: c.r * k, g: c.g * k, b: c.b * k };
+export function scaleRgb<T extends Rgb>(c: T, k: number): T {
+  return { ...c, r: c.r * k, g: c.g * k, b: c.b * k };
 }
 
 /**
@@ -75,8 +77,8 @@ export function scaleRgb(c: Rgb, k: number): Rgb {
  * `MIDIOutput.send()` (one USB packet stream instead of one call per message).
  */
 export class LedFrameWriter {
-  private sent: Rgb[] | null = null;
-  private desired: Rgb[] = emptyFrame();
+  private sent: PadLed[] | null = null;
+  private desired: PadLed[] = emptyFrame();
   private scheduled = false;
   mode: 'full' | 'minimal' = 'full';
   brightness = 1;
@@ -88,7 +90,7 @@ export class LedFrameWriter {
     private readonly schedule: (cb: () => void) => void = (cb) => requestAnimationFrame(cb),
   ) {}
 
-  setPad(pad: number, color: Rgb): void {
+  setPad(pad: number, color: PadLed): void {
     this.desired[pad] = { ...color };
     this.requestFlush();
   }

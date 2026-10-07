@@ -1,5 +1,6 @@
 import { isAtomPortName, nativeModeMessage, parseAtomMessage, type AtomMessage } from '../../src/midi/atomMap';
 import { describeMidi, toHex } from '../../src/midi/describe';
+import { splitMidiMessages } from '../../src/midi/split';
 import { listInputs, listOutputs, requestMidi } from '../../src/midi/webMidi';
 import { $, appendLog, deviceSummary, download, h, pill } from '../shared/dom';
 
@@ -37,10 +38,20 @@ function atomSummary(m: AtomMessage): string {
   }
 }
 
+let multiMessageEvents = 0;
+
 function onMessage(port: MIDIInput, e: MIDIMessageEvent): void {
+  if (!e.data || paused) return;
+  const msgs = splitMidiMessages(e.data);
+  if (msgs.length > 1) {
+    multiMessageEvents++;
+    appendLog(log, `!! one event carried ${msgs.length} messages: ${toHex(e.data)}`);
+  }
+  for (const m of msgs) logMessage(port, e, m);
+}
+
+function logMessage(port: MIDIInput, e: MIDIMessageEvent, data: number[]): void {
   const now = performance.now();
-  const data = e.data;
-  if (!data || paused) return;
   const status = data[0] ?? 0;
   if (hideRealtime.checked && (status === 0xf8 || status === 0xfe)) return;
   const type = status & 0xf0;
@@ -54,7 +65,7 @@ function onMessage(port: MIDIInput, e: MIDIMessageEvent): void {
     lagStats.sum += lag;
     lagStats.max = Math.max(lagStats.max, lag);
   }
-  const bytes = Array.from(data);
+  const bytes = data;
   events.push({ t, lag, port: port.name ?? '', bytes });
   if (events.length > 5000) events.shift();
 
@@ -73,7 +84,7 @@ function renderStats(): void {
   const mean = lagStats.n ? lagStats.sum / lagStats.n : 0;
   statsEl.textContent =
     `events ${lagStats.n + lagStats.zeroOrFuture} · handler lag mean ${mean.toFixed(2)} ms, max ${lagStats.max.toFixed(1)} ms` +
-    ` · zero/future timestamps ${lagStats.zeroOrFuture}`;
+    ` · zero/future timestamps ${lagStats.zeroOrFuture} · multi-message events ${multiMessageEvents}`;
 }
 
 function renderPorts(): void {
@@ -151,6 +162,6 @@ $('#clear').addEventListener('click', () => {
 $('#export').addEventListener('click', () => {
   download(
     `midi-log-${Date.now()}.json`,
-    JSON.stringify({ device: deviceSummary(), lagStats, events }, null, 1),
+    JSON.stringify({ device: deviceSummary(), lagStats, multiMessageEvents, events }, null, 1),
   );
 });

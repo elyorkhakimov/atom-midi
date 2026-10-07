@@ -25,6 +25,7 @@ import {
   type Rgb,
 } from '../../src/midi/atomMap';
 import { describeMidi, toHex } from '../../src/midi/describe';
+import { splitMidiMessages } from '../../src/midi/split';
 import { LedFrameWriter, emptyFrame, scaleRgb } from '../../src/midi/ledFrame';
 import { listInputs, listOutputs, portLabel, requestMidi, sendAll } from '../../src/midi/webMidi';
 import { $, appendLog, deviceSummary, download, h, pill } from '../shared/dom';
@@ -50,6 +51,7 @@ const held = new Set<number>();
 let pressureMode: 'poly' | 'channel' | 'cc22' | null = null;
 const encoderTotals = [0, 0, 0, 0];
 const encoderMaxDelta = [0, 0, 0, 0];
+const encoderMessages = [0, 0, 0, 0];
 const buttonBright = new Map<number, boolean>();
 /** Full hex of unrecognised messages → count. */
 const unknownSeen = new Map<string, number>();
@@ -452,10 +454,20 @@ setInterval(() => {
 // ---------------------------------------------------------------------------
 // Incoming MIDI
 // ---------------------------------------------------------------------------
+/** Events whose data held more than one MIDI message (suspected on Android). */
+let multiMessageEvents = 0;
+
 function onMidiMessage(e: MIDIMessageEvent): void {
-  const data = e.data;
-  if (!data) return;
-  const t = e.timeStamp;
+  if (!e.data) return;
+  const msgs = splitMidiMessages(e.data);
+  if (msgs.length > 1) {
+    multiMessageEvents++;
+    logLine(`!! one event carried ${msgs.length} messages: ${toHex(e.data)}`);
+  }
+  for (const m of msgs) handleMessage(Uint8Array.from(m), e.timeStamp);
+}
+
+function handleMessage(data: Uint8Array, t: number): void {
   const msg = parseAtomMessage(data);
 
   // LED feedback first, before any other work.
@@ -518,9 +530,10 @@ function onMidiMessage(e: MIDIMessageEvent): void {
     case 'encoder': {
       encoderTotals[msg.index]! += msg.delta;
       encoderMaxDelta[msg.index] = Math.max(encoderMaxDelta[msg.index]!, Math.abs(msg.delta));
+      encoderMessages[msg.index]!++;
       const k = knobEls[msg.index]!;
       k.val.textContent = String(encoderTotals[msg.index]);
-      k.meta.textContent = `CC ${ENCODER_CCS[msg.index]} · raw ${data[2]} · max |Δ| ${encoderMaxDelta[msg.index]}`;
+      k.meta.textContent = `CC ${ENCODER_CCS[msg.index]} · raw ${data[2]} · msgs ${encoderMessages[msg.index]} · max |Δ| ${encoderMaxDelta[msg.index]}`;
       break;
     }
     case 'unknown': {
@@ -786,6 +799,8 @@ function report(): object {
     pressureMode,
     handlerLagMs: { mean: lag.n ? +(lag.sum / lag.n).toFixed(2) : null, max: +lag.max.toFixed(2), samples: lag.n, zeroOrFutureTimestamps: lag.zeroOrFuture },
     encoderMaxDelta,
+    encoderMessages,
+    multiMessageEvents,
     unknownMessages: Object.fromEntries(unknownSeen),
     mapping: wizard.results,
     checks: Object.fromEntries([...checkBoxes].map(([id, box]) => [id, box.checked])),

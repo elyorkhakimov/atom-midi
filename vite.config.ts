@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   // Relative base so the build works under a GitHub Pages project path.
   base: './',
+  // Preact JSX via Vite's built-in oxc transform (no Babel plugin needed).
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'preact' },
+  },
   build: {
     rollupOptions: {
       input: {

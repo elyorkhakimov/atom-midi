@@ -37,7 +37,7 @@ We only use protocol facts from these projects, not their code.
 | Shift LED | padbound: Shift (32) has no LED | padbound only | ☐ |
 | Pressure | Default: **channel** aftertouch. Setup menu → pad 7 = **polyphonic** aftertouch (per pad, `Ax note value`). Also CC 22 or off | atompad | ✅ Setup + pad 7 → poly |
 | Mode persistence | Native mode lasts until exit or USB replug | atompad | ☐ |
-| Setup button | Pressing Setup makes the firmware send note-offs for all 16 pads | atompad | ☐ |
+| Setup button | Pressing Setup makes the firmware send note-offs for all 16 pads | atompad | ✅ `89 24 00`…`89 33 00`: Note Off **ch 10**, notes 36–51, one burst with a single timestamp, delivered ~1.5 ms apart |
 
 ### Buttons
 
@@ -176,3 +176,23 @@ The MIDI monitor (`/tools/midi-monitor/`) shows raw traffic with timestamps and 
   no 3.5 mm jack). Check whether that lowers outputLatency compared with the speaker.
 - A measured round-trip test (mic loopback) is in Phase 3. Until then, Chrome's reported `outputLatency` is
   our estimate, and the latency-calibration screen covers scoring.
+
+### Setup button flush (2026-10-07, Mac mini log)
+
+Pressing Setup in native mode sends CC 86 and 16 Note Offs on **channel 10** (`89 24 00` … `89 33 00`). All 16
+share one `timeStamp`, and the handler receives them about 1.5 ms apart, which explains the 30 ms handler-lag spike
+in the second Mac mini report. How the input layer handles this:
+- A PadUp is emitted only for pads that are currently held. Stray releases from the flush are dropped.
+- While Setup is held, pad events are suppressed. Those taps go to the device's settings menu (e.g. pad 7 = poly AT).
+- The flush timestamps are still correct, so scoring by `timeStamp` isn't affected.
+
+### Open issue: knob steps lost on OnePlus 12 (reported 2026-10-07)
+
+The tester felt every detent on the phone, but not every one changed the number. On the Mac mini every
+detent counted. The OnePlus report shows max |Δ| = 1 on all knobs (Mac: up to 6).
+- Hypothesis: Chrome on Android sometimes packs several messages into one `MIDIMessageEvent`, and we only
+  parsed the first 3 bytes. **Fix:** every handler now runs `splitMidiMessages` (src/midi/split.ts). The tools
+  count and log "multi-message events", and the atom-test knob tiles show the message count.
+- To check: on both devices, turn knob 1 exactly 20 detents slowly and compare the count. If the phone still
+  loses steps with 0 multi-message events, the loss is below the browser (Android MIDI stack).
+  Menus can always be driven with the Up/Down buttons as well.

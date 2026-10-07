@@ -1,0 +1,590 @@
+{
+  "id": "electro",
+  "name": "Electro",
+  "description": "808/909-style electronic kit",
+  "license": "CC0-1.0",
+  "source": "Synthesized by tools/kit-gen/make-electronic-kit.ts in this repository (original work).",
+  "sampleRate": 48000,
+  "pads": [
+    "kick",
+    "snare",
+    "closedHat",
+    "openHat",
+    "lowTom",
+    "midTom",
+    "highTom",
+    "clap",
+    "rim",
+    "cowbell",
+    "clave",
+    "shaker",
+    "crash",
+    "ride",
+    "boom",
+    "zap"
+  ],
+  "instruments": {
+    "kick": {
+      "name": "Kick",
+      "color": [
+        127,
+        0,
+        0
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "kick_soft_1.wav",
+            "kick_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "kick_medium_1.wav",
+            "kick_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "kick_hard_1.wav",
+            "kick_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "snare": {
+      "name": "Snare",
+      "color": [
+        127,
+        40,
+        0
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "snare_soft_1.wav",
+            "snare_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "snare_medium_1.wav",
+            "snare_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "snare_hard_1.wav",
+            "snare_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "closedHat": {
+      "name": "Closed hat",
+      "color": [
+        127,
+        110,
+        0
+      ],
+      "chokeGroup": "hat",
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "closedHat_soft_1.wav",
+            "closedHat_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "closedHat_medium_1.wav",
+            "closedHat_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "closedHat_hard_1.wav",
+            "closedHat_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "openHat": {
+      "name": "Open hat",
+      "color": [
+        90,
+        127,
+        0
+      ],
+      "chokeGroup": "hat",
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "openHat_soft_1.wav",
+            "openHat_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "openHat_medium_1.wav",
+            "openHat_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "openHat_hard_1.wav",
+            "openHat_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "lowTom": {
+      "name": "Low tom",
+      "color": [
+        0,
+        127,
+        20
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "lowTom_soft_1.wav",
+            "lowTom_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "lowTom_medium_1.wav",
+            "lowTom_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "lowTom_hard_1.wav",
+            "lowTom_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "midTom": {
+      "name": "Mid tom",
+      "color": [
+        0,
+        127,
+        60
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "midTom_soft_1.wav",
+            "midTom_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "midTom_medium_1.wav",
+            "midTom_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "midTom_hard_1.wav",
+            "midTom_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "highTom": {
+      "name": "High tom",
+      "color": [
+        0,
+        127,
+        110
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "highTom_soft_1.wav",
+            "highTom_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "highTom_medium_1.wav",
+            "highTom_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "highTom_hard_1.wav",
+            "highTom_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "clap": {
+      "name": "Clap",
+      "color": [
+        127,
+        0,
+        60
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "clap_soft_1.wav",
+            "clap_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "clap_medium_1.wav",
+            "clap_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "clap_hard_1.wav",
+            "clap_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "rim": {
+      "name": "Rim",
+      "color": [
+        0,
+        90,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "rim_soft_1.wav",
+            "rim_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "rim_medium_1.wav",
+            "rim_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "rim_hard_1.wav",
+            "rim_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "cowbell": {
+      "name": "Cowbell",
+      "color": [
+        0,
+        40,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "cowbell_soft_1.wav",
+            "cowbell_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "cowbell_medium_1.wav",
+            "cowbell_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "cowbell_hard_1.wav",
+            "cowbell_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "clave": {
+      "name": "Clave",
+      "color": [
+        30,
+        0,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "clave_soft_1.wav",
+            "clave_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "clave_medium_1.wav",
+            "clave_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "clave_hard_1.wav",
+            "clave_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "shaker": {
+      "name": "Shaker",
+      "color": [
+        70,
+        0,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "shaker_soft_1.wav",
+            "shaker_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "shaker_medium_1.wav",
+            "shaker_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "shaker_hard_1.wav",
+            "shaker_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "crash": {
+      "name": "Crash",
+      "color": [
+        110,
+        0,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "crash_soft_1.wav",
+            "crash_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "crash_medium_1.wav",
+            "crash_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "crash_hard_1.wav",
+            "crash_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "ride": {
+      "name": "Ride",
+      "color": [
+        127,
+        0,
+        110
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "ride_soft_1.wav",
+            "ride_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "ride_medium_1.wav",
+            "ride_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "ride_hard_1.wav",
+            "ride_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "boom": {
+      "name": "Boom",
+      "color": [
+        127,
+        10,
+        10
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "boom_soft_1.wav",
+            "boom_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "boom_medium_1.wav",
+            "boom_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "boom_hard_1.wav",
+            "boom_hard_2.wav"
+          ]
+        }
+      ]
+    },
+    "zap": {
+      "name": "Zap",
+      "color": [
+        127,
+        127,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 50,
+          "samples": [
+            "zap_soft_1.wav",
+            "zap_soft_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 51,
+          "maxVelocity": 100,
+          "samples": [
+            "zap_medium_1.wav",
+            "zap_medium_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 101,
+          "maxVelocity": 127,
+          "samples": [
+            "zap_hard_1.wav",
+            "zap_hard_2.wav"
+          ]
+        }
+      ]
+    }
+  }
+}
