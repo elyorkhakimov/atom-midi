@@ -1,4 +1,32 @@
 /** Reaction timing rules. Times are performance.now() ms, already latency-adjusted. */
+import { PAD_COLS, PAD_ROWS } from '../../midi/atomMap';
+
+/** classic: one GO sound, any pad. matchN: N zones with their own sound; hit the zone you hear. */
+export type ReactionMode = 'classic' | 'match2' | 'match4';
+export const REACTION_MODES: readonly ReactionMode[] = ['classic', 'match2', 'match4'];
+
+export function zoneCount(mode: ReactionMode): number {
+  return mode === 'match2' ? 2 : mode === 'match4' ? 4 : 1;
+}
+
+/**
+ * Zone of a pad. 2 zones = left / right half. 4 zones = 2×2 quadrants:
+ * 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right.
+ */
+export function zoneOf(pad: number, zones: number): number {
+  const right = pad % PAD_COLS >= PAD_COLS / 2 ? 1 : 0;
+  if (zones === 2) return right;
+  if (zones === 4) return (Math.floor(pad / PAD_COLS) >= PAD_ROWS / 2 ? 0 : 2) + right;
+  return 0;
+}
+
+/** Random zone, never the same one three times in a row (so it can't be guessed by habit or feel stuck). */
+export function pickZone(zones: number, history: readonly number[], rand: () => number = Math.random): number {
+  const [a, b] = history.slice(-2);
+  const banned = a !== undefined && a === b ? a : -1;
+  const options = Array.from({ length: zones }, (_, z) => z).filter((z) => z !== banned);
+  return options[Math.floor(rand() * options.length)] ?? 0;
+}
 
 /** Hits before GO, or less than this after it, are false starts (nobody reacts that fast). */
 export const FALSE_START_MS = 100;

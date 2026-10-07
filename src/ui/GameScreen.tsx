@@ -45,6 +45,12 @@ export function GameScreen({ id }: { id: string }) {
     ro.observe(canvas);
     resize();
 
+    const onPointer = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      game.onTap?.(e.clientX - rect.left, e.clientY - rect.top);
+    };
+    canvas.addEventListener('pointerdown', onPointer);
+
     let frame = requestAnimationFrame(function loop(now) {
       if (w > 0 && h > 0) game.draw(g, w, h, now);
       frame = requestAnimationFrame(loop);
@@ -52,6 +58,7 @@ export function GameScreen({ id }: { id: string }) {
 
     return () => {
       cancelAnimationFrame(frame);
+      canvas.removeEventListener('pointerdown', onPointer);
       ro.disconnect();
       popInput();
       game.stop();

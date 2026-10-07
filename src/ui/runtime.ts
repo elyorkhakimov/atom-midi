@@ -1,4 +1,4 @@
-import { computed, effect, signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
 import { AudioEngine } from '../audio/engine';
 import { InputBus } from '../input/inputBus';
 import { attachKeyboard } from '../input/keyboard';
@@ -7,25 +7,14 @@ import type { ControllerStatus, PadController } from '../midi/padController';
 import { requestMidi } from '../midi/webMidi';
 import { BestTracker } from '../storage/bests';
 import { load, save } from '../storage/persist';
-import {
-  BESTS_KEY,
-  CALIBRATION_KEY,
-  DEFAULT_CALIBRATION,
-  DEFAULT_SETTINGS,
-  SETTINGS_KEY,
-  type Bests,
-  type PadCalibrationStore,
-  type Settings,
-} from '../storage/settings';
+import { BESTS_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, type Bests, type Settings } from '../storage/settings';
 
 // ---------------------------------------------------------------------------
 // Persistent state (per device)
 // ---------------------------------------------------------------------------
 export const settings = signal<Settings>(load(SETTINGS_KEY, DEFAULT_SETTINGS));
-export const padCalibration = signal<PadCalibrationStore>(load(CALIBRATION_KEY, DEFAULT_CALIBRATION));
 export const bests = signal<Bests>(load(BESTS_KEY, {}));
 effect(() => save(SETTINGS_KEY, settings.value));
-effect(() => save(CALIBRATION_KEY, padCalibration.value));
 effect(() => save(BESTS_KEY, bests.value));
 
 export function updateSettings(patch: Partial<Settings>): void {
@@ -39,7 +28,6 @@ export const controllerStatus = signal<ControllerStatus>({ connected: false, nat
 export const audioRunning = signal(false);
 export const kitState = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
 export const midiError = signal<string | null>(null);
-export const padsCalibrated = computed(() => padCalibration.value.pads.filter(Boolean).length);
 
 // ---------------------------------------------------------------------------
 // Runtime services (created on the first user gesture)
@@ -82,7 +70,6 @@ export async function startRuntime(): Promise<Runtime> {
   controller.onStatus((s) => (controllerStatus.value = s));
 
   const input = new InputBus(() => ({
-    calibration: padCalibration.value.pads,
     threshold: settings.value.velocityThreshold,
     curveGamma: settings.value.curveGamma,
     doubleTriggerMs: settings.value.doubleTriggerMs,
@@ -106,6 +93,7 @@ export async function startRuntime(): Promise<Runtime> {
   await resumed.catch(() => undefined);
   audioRunning.value = audio.running;
   void loadKit(settings.value.kitId);
+  void audio.loadCueFiles();
   return runtime;
 }
 

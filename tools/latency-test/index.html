@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audio Latency Test</title>
+  <link rel="stylesheet" href="../shared/tools.css" />
+</head>
+<body>
+  <header>
+    <h1>Audio Latency Test</h1>
+    <nav><a href="../../">Home</a><a href="../atom-test/">ATOM test</a><a href="../midi-monitor/">MIDI monitor</a></nav>
+    <span id="status"></span>
+  </header>
+  <main>
+    <section>
+      <h2>1 · Loopback</h2>
+      <p>The device plays short chirps and listens for them with its own microphone. That gives the real
+        <b>speaker → mic</b> round trip, not just what the browser reports.</p>
+      <p class="muted">Use the speaker you'll actually play with, volume at about 70%, in a fairly quiet room.
+        Keep the phone flat with nothing covering the speaker or mic. Allow the microphone when asked.</p>
+      <div class="row">
+        <span class="muted">Compare audio settings:</span>
+        <label><input type="checkbox" name="hint" value="interactive" checked /> interactive (app default)</label>
+        <label><input type="checkbox" name="hint" value="0" checked /> 0 (lowest possible)</label>
+        <label><input type="checkbox" name="hint" value="balanced" /> balanced</label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="run" class="primary">Run test</button>
+        <button id="export" disabled>Export JSON</button>
+        <span id="progress" class="muted"></span>
+      </div>
+      <div class="overflow" style="margin-top:10px"><table id="results"></table></div>
+      <p class="muted small" id="explain" hidden>
+        <b>Round trip</b> = speaker delay + microphone delay, measured. <b>Output ≈</b> round trip minus the mic
+        delay the browser reports (when it reports one). <b>Reported</b> is what Chrome claims for output
+        (baseLatency + outputLatency) — the app uses it to line up sounds with scoring. If measured output is much
+        bigger than reported, timing calibration absorbs the difference for the games.
+      </p>
+    </section>
+    <section>
+      <h2>2 · Feel test</h2>
+      <p class="muted">Hit pads on the ATOM (or press a–k on a keyboard) to hear a click through the chosen setting.
+        Compare how direct each one feels.</p>
+      <div class="row">
+        <label>Setting <select id="feelHint">
+          <option value="interactive">interactive</option>
+          <option value="0">0</option>
+          <option value="balanced">balanced</option>
+        </select></label>
+        <button id="feel">Start feel test</button>
+        <span id="feelInfo" class="mono muted"></span>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

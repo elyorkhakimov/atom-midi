@@ -14,6 +14,7 @@ export default defineConfig({
         main: resolve(import.meta.dirname, 'index.html'),
         midiMonitor: resolve(import.meta.dirname, 'tools/midi-monitor/index.html'),
         atomTest: resolve(import.meta.dirname, 'tools/atom-test/index.html'),
+        latencyTest: resolve(import.meta.dirname, 'tools/latency-test/index.html'),
       },
     },
   },

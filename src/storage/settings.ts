@@ -1,4 +1,5 @@
-import type { CurveName, PadCalibration } from '../input/velocity';
+import type { ReactionMode } from '../games/reaction/logic';
+import type { CurveName } from '../input/velocity';
 
 export interface Settings {
   masterVolume: number; // 0..1
@@ -6,7 +7,7 @@ export interface Settings {
   ledBrightness: number; // 0..1 cap; ~35% saves phone battery
   curve: CurveName;
   curveGamma: number;
-  velocityThreshold: number; // calibrated velocity below this is a ghost hit
+  velocityThreshold: number; // raw velocity below this is a ghost hit
   doubleTriggerMs: number;
   kitId: string;
   kidUi: boolean;
@@ -14,11 +15,13 @@ export interface Settings {
   latencyOffsetMs: number;
   latencyCalibrated: boolean;
   bluetoothWarningSeen: boolean;
+  /** Rhythm copy: metronome during the demo and while playing (the count-in always clicks). */
+  rhythmMetronome: boolean;
+  reactionMode: ReactionMode;
   setupPromptSeen: boolean;
 }
 
 export const SETTINGS_KEY = 'padgames.settings.v1';
-export const CALIBRATION_KEY = 'padgames.padCalibration.v1';
 export const BESTS_KEY = 'padgames.bests.v1';
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,20 +32,15 @@ export const DEFAULT_SETTINGS: Settings = {
   curveGamma: 1,
   velocityThreshold: 4,
   doubleTriggerMs: 25,
-  kitId: 'electro',
+  kitId: 'acoustic',
   kidUi: false,
   latencyOffsetMs: 0,
   latencyCalibrated: false,
   bluetoothWarningSeen: false,
+  rhythmMetronome: true,
+  reactionMode: 'classic',
   setupPromptSeen: false,
 };
-
-export interface PadCalibrationStore {
-  pads: (PadCalibration | null)[];
-  date: string | null;
-}
-
-export const DEFAULT_CALIBRATION: PadCalibrationStore = { pads: Array(16).fill(null), date: null };
 
 /** All-time bests per device. Lower is better for times, higher for percentages. */
 export type Bests = Record<string, number>;

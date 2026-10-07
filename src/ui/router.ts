@@ -5,7 +5,6 @@ export type Route =
   | { name: 'setup' }
   | { name: 'menu' }
   | { name: 'settings' }
-  | { name: 'calPads'; back: Route['name'] }
   | { name: 'calLatency'; back: Route['name'] }
   | { name: 'game'; id: string };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYERS, playerOfPad, playerPads } from './players';
-import { FALSE_START_MS, judgeHit, randomDelayMs, resolveBattle } from './reaction/logic';
+import { FALSE_START_MS, judgeHit, pickZone, randomDelayMs, resolveBattle, zoneOf } from './reaction/logic';
 import { PATTERNS } from './rhythmCopy/patterns';
 import { scoreRhythm } from './rhythmCopy/scoring';
 import { COUNT_IN_BEATS, DEMO_LOOPS, PLAY_LOOPS, buildTimeline } from './rhythmCopy/timeline';
@@ -14,6 +14,21 @@ describe('reaction', () => {
   it('random delay is 2–6 s', () => {
     expect(randomDelayMs(() => 0)).toBe(2000);
     expect(randomDelayMs(() => 0.999999)).toBeCloseTo(6000, 0);
+  });
+});
+
+describe('reaction sound match', () => {
+  it('splits the board into halves or quadrants', () => {
+    // Bottom row is pads 0–3, top row 12–15.
+    expect([0, 1, 2, 3].map((p) => zoneOf(p, 2))).toEqual([0, 0, 1, 1]);
+    expect([12, 13, 14, 15].map((p) => zoneOf(p, 4))).toEqual([0, 0, 1, 1]); // top-left, top-right
+    expect([0, 1, 2, 3].map((p) => zoneOf(p, 4))).toEqual([2, 2, 3, 3]); // bottom-left, bottom-right
+    expect(zoneOf(9, 4)).toBe(0); // row 2, col 1: top-left
+    expect(zoneOf(6, 4)).toBe(3); // row 1, col 2: bottom-right
+  });
+  it('never picks the same zone three times in a row', () => {
+    for (let i = 0; i < 50; i++) expect(pickZone(2, [1, 1], Math.random)).toBe(0);
+    expect(pickZone(4, [0, 1], () => 0)).toBe(0);
   });
 });
 
@@ -117,6 +132,7 @@ describe('rhythm timeline', () => {
     expect(tl.expected).toHaveLength(p.notes.length * PLAY_LOOPS);
     expect(tl.demoNotes).toHaveLength(p.notes.length * DEMO_LOOPS);
     expect(tl.clicks).toHaveLength(DEMO_LOOPS * 4 + COUNT_IN_BEATS + PLAY_LOOPS * 4);
+    expect(tl.clicks.filter((c) => c.countIn).map((c) => c.at)).toEqual([0, 1, 2, 3].map((i) => tl.countInStart + i * 0.5));
     expect(tl.expected.every((n, i, a) => i === 0 || n.at >= a[i - 1]!.at)).toBe(true);
   });
   it('has 10 built-in patterns with notes inside their bars', () => {

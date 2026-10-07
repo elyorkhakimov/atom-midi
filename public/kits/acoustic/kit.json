@@ -1,0 +1,516 @@
+{
+  "id": "acoustic",
+  "name": "Acoustic",
+  "description": "Real drum kit (Salamander Drumkit) with high tom, clap and tambourine (VCSL)",
+  "license": "CC-BY-SA-3.0 AND CC0-1.0",
+  "source": "Drums and cymbals: Salamander Drumkit by Alexander Holm, CC BY-SA 3.0 (https://archive.org/details/SalamanderDrumkit), trimmed, mixed to mono and normalized for this kit. High tom, clap and tambourine: Versilian Community Sample Library, CC0 (https://github.com/sgossner/VCSL).",
+  "sampleRate": 48000,
+  "pads": [
+    "kick",
+    "snare",
+    "closedHat",
+    "openHat",
+    "floorTom",
+    "rackTom",
+    "highTom",
+    "clap",
+    "pedalHat",
+    "crossStick",
+    "tambourine",
+    "cowbell",
+    "crash",
+    "splash",
+    "ride",
+    "rideBell"
+  ],
+  "instruments": {
+    "kick": {
+      "name": "Kick",
+      "color": [
+        127,
+        0,
+        0
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "kick_1_1.wav",
+            "kick_1_2.wav",
+            "kick_1_3.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "kick_2_1.wav",
+            "kick_2_2.wav",
+            "kick_2_3.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "kick_3_1.wav",
+            "kick_3_2.wav",
+            "kick_3_3.wav"
+          ]
+        }
+      ]
+    },
+    "snare": {
+      "name": "Snare",
+      "color": [
+        127,
+        60,
+        0
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 32,
+          "samples": [
+            "snare_1_1.wav",
+            "snare_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 33,
+          "maxVelocity": 64,
+          "samples": [
+            "snare_2_1.wav",
+            "snare_2_2.wav",
+            "snare_2_3.wav"
+          ]
+        },
+        {
+          "minVelocity": 65,
+          "maxVelocity": 95,
+          "samples": [
+            "snare_3_1.wav",
+            "snare_3_2.wav",
+            "snare_3_3.wav"
+          ]
+        },
+        {
+          "minVelocity": 96,
+          "maxVelocity": 127,
+          "samples": [
+            "snare_4_1.wav",
+            "snare_4_2.wav"
+          ]
+        }
+      ]
+    },
+    "closedHat": {
+      "name": "Closed hi-hat",
+      "color": [
+        127,
+        110,
+        0
+      ],
+      "chokeGroup": "hat",
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 64,
+          "samples": [
+            "closedHat_1_1.wav",
+            "closedHat_1_2.wav",
+            "closedHat_1_3.wav",
+            "closedHat_1_4.wav"
+          ]
+        },
+        {
+          "minVelocity": 65,
+          "maxVelocity": 127,
+          "samples": [
+            "closedHat_2_1.wav",
+            "closedHat_2_2.wav",
+            "closedHat_2_3.wav",
+            "closedHat_2_4.wav"
+          ]
+        }
+      ]
+    },
+    "openHat": {
+      "name": "Open hi-hat",
+      "color": [
+        100,
+        127,
+        0
+      ],
+      "chokeGroup": "hat",
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "openHat_1_1.wav",
+            "openHat_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "openHat_2_1.wav",
+            "openHat_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "openHat_3_1.wav",
+            "openHat_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "floorTom": {
+      "name": "Floor tom",
+      "color": [
+        0,
+        40,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "floorTom_1_1.wav",
+            "floorTom_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "floorTom_2_1.wav",
+            "floorTom_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "floorTom_3_1.wav",
+            "floorTom_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "rackTom": {
+      "name": "Rack tom",
+      "color": [
+        0,
+        90,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "rackTom_1_1.wav",
+            "rackTom_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "rackTom_2_1.wav",
+            "rackTom_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "rackTom_3_1.wav",
+            "rackTom_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "highTom": {
+      "name": "High tom",
+      "color": [
+        0,
+        127,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "highTom_1_1.wav",
+            "highTom_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "highTom_2_1.wav",
+            "highTom_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "highTom_3_1.wav",
+            "highTom_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "clap": {
+      "name": "Clap",
+      "color": [
+        127,
+        30,
+        60
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "clap_1_1.wav",
+            "clap_1_2.wav",
+            "clap_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "pedalHat": {
+      "name": "Pedal hi-hat",
+      "color": [
+        127,
+        127,
+        40
+      ],
+      "chokeGroup": "hat",
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "pedalHat_1_1.wav",
+            "pedalHat_1_2.wav",
+            "pedalHat_1_3.wav",
+            "pedalHat_1_4.wav"
+          ]
+        }
+      ]
+    },
+    "crossStick": {
+      "name": "Cross-stick",
+      "color": [
+        127,
+        0,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "crossStick_1_1.wav",
+            "crossStick_1_2.wav",
+            "crossStick_1_3.wav",
+            "crossStick_1_4.wav"
+          ]
+        }
+      ]
+    },
+    "tambourine": {
+      "name": "Tambourine",
+      "color": [
+        90,
+        0,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 64,
+          "samples": [
+            "tambourine_1_1.wav"
+          ]
+        },
+        {
+          "minVelocity": 65,
+          "maxVelocity": 127,
+          "samples": [
+            "tambourine_2_1.wav"
+          ]
+        }
+      ]
+    },
+    "cowbell": {
+      "name": "Cowbell",
+      "color": [
+        127,
+        70,
+        30
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "cowbell_1_1.wav",
+            "cowbell_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "cowbell_2_1.wav",
+            "cowbell_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "cowbell_3_1.wav",
+            "cowbell_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "crash": {
+      "name": "Crash",
+      "color": [
+        0,
+        127,
+        60
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 64,
+          "samples": [
+            "crash_1_1.wav",
+            "crash_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 65,
+          "maxVelocity": 127,
+          "samples": [
+            "crash_2_1.wav",
+            "crash_2_2.wav"
+          ]
+        }
+      ]
+    },
+    "splash": {
+      "name": "Splash",
+      "color": [
+        0,
+        127,
+        0
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 64,
+          "samples": [
+            "splash_1_1.wav",
+            "splash_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 65,
+          "maxVelocity": 127,
+          "samples": [
+            "splash_2_1.wav",
+            "splash_2_2.wav"
+          ]
+        }
+      ]
+    },
+    "ride": {
+      "name": "Ride",
+      "color": [
+        60,
+        60,
+        127
+      ],
+      "crossfade": 8,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 42,
+          "samples": [
+            "ride_1_1.wav",
+            "ride_1_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 43,
+          "maxVelocity": 85,
+          "samples": [
+            "ride_2_1.wav",
+            "ride_2_2.wav"
+          ]
+        },
+        {
+          "minVelocity": 86,
+          "maxVelocity": 127,
+          "samples": [
+            "ride_3_1.wav",
+            "ride_3_2.wav"
+          ]
+        }
+      ]
+    },
+    "rideBell": {
+      "name": "Ride bell",
+      "color": [
+        110,
+        110,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "rideBell_1_1.wav",
+            "rideBell_1_2.wav",
+            "rideBell_1_3.wav"
+          ]
+        }
+      ]
+    }
+  }
+}

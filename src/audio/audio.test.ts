@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import acousticKit from '../../public/kits/acoustic/kit.json';
+import electroKit from '../../public/kits/electro/kit.json';
+import { softClip } from './engine';
 import { audioToPerf, perfToAudio } from './clock';
-import { RoundRobin, selectLayers, velocityGain, type KitLayer } from './kit';
+import { RoundRobin, selectLayers, velocityGain, type KitJson, type KitLayer } from './kit';
 
 describe('clock conversion', () => {
   const snap = { contextTime: 10, performanceTime: 50_000 };
@@ -40,4 +43,26 @@ describe('kit layers', () => {
     const rr = new RoundRobin();
     expect([rr.pick('a', 2), rr.pick('a', 2), rr.pick('a', 2), rr.pick('b', 3)]).toEqual([0, 1, 0, 0]);
   });
+});
+
+describe('softClip', () => {
+  it('is transparent below the knee and never exceeds ±1', () => {
+    expect(softClip(0.5)).toBe(0.5);
+    expect(softClip(-0.3)).toBe(-0.3);
+    expect(softClip(0.9)).toBeGreaterThan(0.8);
+    expect(softClip(0.9)).toBeLessThan(0.9);
+    expect(softClip(2)).toBeLessThan(1);
+    expect(softClip(-2)).toBeGreaterThan(-1);
+    expect(softClip(1.2)).toBeGreaterThan(softClip(1.1)); // still monotonic
+  });
+});
+
+describe('drum kit layouts', () => {
+  // Rhythm copy patterns assume these roles on pads 0–7 (see rhythmCopy/patterns.ts).
+  const ROLES = [/kick/i, /snare/i, /closed.*hat/i, /open.*hat/i, /(low|floor).*tom/i, /(mid|rack).*tom/i, /high.*tom/i, /clap/i];
+  for (const kit of [acousticKit, electroKit] as unknown as KitJson[]) {
+    it(`${kit.id} puts kick, snare, hats, toms and clap on pads 1–8`, () => {
+      ROLES.forEach((role, pad) => expect(kit.instruments[kit.pads[pad]!]!.name).toMatch(role));
+    });
+  }
 });

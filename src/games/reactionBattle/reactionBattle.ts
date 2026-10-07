@@ -101,7 +101,7 @@ export class ReactionBattleGame implements Game {
     if (result.winner !== null) {
       this.wins[result.winner]!++;
       this.ctx.bests.record(BEST_KEY, result.reaction[result.winner]!, 'lower');
-      this.ctx.audio.playCue('win');
+      this.ctx.audio.playCue('youWin');
       this.showAreas(1, result.reaction.map((_, i) => (i === result.winner ? 'breathe' : 'off')));
     } else {
       this.ctx.audio.playCue('fail');

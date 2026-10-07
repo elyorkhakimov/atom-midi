@@ -28,7 +28,11 @@ export interface KitJson {
   instruments: Record<string, KitInstrument>;
 }
 
-export const KITS = [{ id: 'electro', name: 'Electro' }] as const;
+export const KITS = [
+  { id: 'acoustic', name: 'Acoustic' },
+  { id: 'electro', name: 'Electro' },
+  { id: 'fun', name: 'Animals & FX' },
+] as const;
 
 /** Default gain curve from the spec: (v/127)^2. */
 export function velocityGain(v: number): number {

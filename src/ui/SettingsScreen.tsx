@@ -4,7 +4,7 @@ import { CURVE_GAMMA, type CurveName } from '../input/velocity';
 import type { Settings } from '../storage/settings';
 import { useInput } from './hooks';
 import { go } from './router';
-import { bests, getRuntime, loadKit, padsCalibrated, settings, updateSettings } from './runtime';
+import { bests, getRuntime, loadKit, settings, updateSettings } from './runtime';
 
 interface ValueRow {
   kind: 'value';
@@ -70,7 +70,6 @@ export function SettingsScreen() {
       },
     },
     { kind: 'value', label: 'Kid mode (fewer words)', value: (s) => (s.kidUi ? 'on' : 'off'), step: (s) => ({ kidUi: !s.kidUi }) },
-    { kind: 'action', label: 'Calibrate pads', detail: () => `${padsCalibrated.value}/16 pads calibrated`, run: () => go({ name: 'calPads', back: 'settings' }) },
     {
       kind: 'action',
       label: 'Calibrate timing',
@@ -160,6 +159,7 @@ export function SettingsScreen() {
           ← Menu
         </button>
         <a class="muted small" href={`${import.meta.env.BASE_URL}tools/atom-test/`}>ATOM test tools</a>
+        <a class="muted small" href={`${import.meta.env.BASE_URL}tools/latency-test/`}>Audio latency test</a>
       </div>
     </div>
   );

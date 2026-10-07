@@ -1,26 +1,10 @@
 /**
- * Velocity shaping, applied in this order:
- *   per-pad calibration -> ghost-hit threshold -> response curve.
+ * Velocity shaping, applied in this order: ghost-hit threshold -> response curve.
+ * Raw pad velocities are used as-is (no per-pad calibration).
  * Pure functions; no browser APIs.
  */
 
-/** Raw velocities measured for one pad in the calibration wizard. */
-export interface PadCalibration {
-  soft: number;
-  hard: number;
-}
-
-/** Calibrated velocity for a soft hit. A hard hit maps to 127. */
-export const SOFT_TARGET = 20;
-
 const clampVel = (v: number) => Math.max(1, Math.min(127, Math.round(v)));
-
-/** Maps raw velocity so this pad's soft ≈ 20 and hard = 127, piecewise linear. */
-export function calibrateVelocity(raw: number, cal: PadCalibration | null | undefined): number {
-  if (!cal || cal.hard <= cal.soft) return clampVel(raw);
-  if (raw <= cal.soft) return clampVel((raw / cal.soft) * SOFT_TARGET);
-  return clampVel(SOFT_TARGET + ((raw - cal.soft) / (cal.hard - cal.soft)) * (127 - SOFT_TARGET));
-}
 
 export type CurveName = 'linear' | 'soft' | 'hard';
 

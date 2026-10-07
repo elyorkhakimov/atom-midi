@@ -1,12 +1,13 @@
+import { KITS } from '../../audio/kit';
 import type { InputEvent } from '../../input/events';
 import { PAD_COUNT } from '../../midi/atomMap';
 import type { PadLed } from '../../midi/ledFrame';
-import { THEME, clear, ledCss, roundRect, text } from '../draw';
-import { Timers, type Game, type GameContext } from '../framework';
+import { THEME, clear, fitSize, ledCss, roundRect, text } from '../draw';
+import { Timers, inRect, type Game, type GameContext, type Rect } from '../framework';
 import { dim } from '../players';
 import { PATTERNS, patternPads, type Pattern } from './patterns';
 import { scoreRhythm, type Note, type RhythmScore } from './scoring';
-import { DEMO_LOOPS, PLAY_LOOPS, buildTimeline, type RhythmTimeline } from './timeline';
+import { DEMO_LOOPS, PLAY_LOOPS, buildTimeline, type Click, type RhythmTimeline } from './timeline';
 
 type Phase =
   | { name: 'choose' }
@@ -26,6 +27,10 @@ export class RhythmCopyGame implements Game {
   private phase: Phase = { name: 'choose' };
   private hits: Note[] = [];
   private readonly timers = new Timers();
+  /** Scheduled metronome clicks of the current run, so the toggle can add or cancel the rest. */
+  private clicks: { click: Click; handle: { cancel(): void } | null }[] = [];
+  /** On-screen metronome toggle, set by draw(). */
+  private clickToggle: Rect | null = null;
 
   private get pattern(): Pattern {
     return PATTERNS[this.index]!;
@@ -33,12 +38,53 @@ export class RhythmCopyGame implements Game {
 
   start(ctx: GameContext): void {
     this.ctx = ctx;
+    this.showMetronome();
     this.toChoose();
   }
 
   stop(): void {
     this.timers.clear();
+    this.cancelClicks();
     this.ctx.audio.stopAll();
+  }
+
+  // -------------------------------------------------------------------------
+  // Metronome
+  // -------------------------------------------------------------------------
+  private get metronomeOn(): boolean {
+    return this.ctx.settings().rhythmMetronome;
+  }
+
+  private showMetronome(): void {
+    this.ctx.controller.setButtonLight('click', this.metronomeOn);
+  }
+
+  private toggleMetronome(): void {
+    const on = !this.metronomeOn;
+    this.ctx.updateSettings({ rhythmMetronome: on });
+    this.ctx.audio.playCue('tick');
+    this.showMetronome();
+    // Applies to the rest of a run in progress.
+    const soon = this.ctx.audio.ctx.currentTime + 0.02;
+    for (const c of this.clicks) {
+      if (c.click.countIn || c.click.at < soon) continue;
+      if (on && !c.handle) c.handle = this.ctx.audio.click(c.click.accent, c.click.at);
+      else if (!on && c.handle) {
+        c.handle.cancel();
+        c.handle = null;
+      }
+    }
+  }
+
+  private scheduleClicks(clicks: readonly Click[]): void {
+    this.cancelClicks();
+    const on = this.metronomeOn;
+    this.clicks = clicks.map((click) => ({ click, handle: on || click.countIn ? this.ctx.audio.click(click.accent, click.at) : null }));
+  }
+
+  private cancelClicks(): void {
+    for (const c of this.clicks) c.handle?.cancel();
+    this.clicks = [];
   }
 
   // -------------------------------------------------------------------------
@@ -58,8 +104,20 @@ export class RhythmCopyGame implements Game {
   // -------------------------------------------------------------------------
   private toChoose(): void {
     this.timers.clear();
+    this.cancelClicks();
     this.phase = { name: 'choose' };
     this.showPatternPads();
+  }
+
+  private changeKit(delta: number): void {
+    const current = this.ctx.settings().kitId;
+    const i = KITS.findIndex((k) => k.id === current);
+    const next = KITS[(i + delta + KITS.length) % KITS.length]!;
+    this.ctx.updateSettings({ kitId: next.id });
+    this.ctx.audio.playCue('tick');
+    void this.ctx.audio.loadKit(next.id).then(() => {
+      if (this.phase.name === 'choose') this.showPatternPads();
+    });
   }
 
   private select(delta: number): void {
@@ -76,7 +134,7 @@ export class RhythmCopyGame implements Game {
     const snap = audio.clock.snapshot();
     const toPerf = (at: number) => snap.performanceTime + (at - snap.contextTime) * 1000;
 
-    for (const c of tl.clicks) audio.click(c.accent, c.at);
+    this.scheduleClicks(tl.clicks);
     for (const n of tl.demoNotes) {
       audio.playPad(n.pad, 100, n.at);
       // Secondary visual cue: flash the pad the demo is playing.
@@ -93,7 +151,7 @@ export class RhythmCopyGame implements Game {
     if (p.name !== 'running') return;
     const score = scoreRhythm(p.expected, this.hits);
     const best = this.ctx.bests.record(`rhythm.${this.pattern.id}`, Math.round(score.percent), 'higher').sessionBest;
-    this.ctx.audio.playCue(score.percent >= 80 ? 'win' : score.percent >= 50 ? 'select' : 'fail');
+    this.ctx.audio.playCue(best && score.percent >= 50 ? 'record' : score.percent >= 80 ? 'win' : score.percent >= 50 ? 'select' : 'fail');
     this.phase = { name: 'results', tl: p.tl, score, best };
     this.showPatternPads();
   }
@@ -103,11 +161,14 @@ export class RhythmCopyGame implements Game {
     if (e.type === 'encoder') {
       if (p.name !== 'choose') return;
       if (e.id === 1) this.bpm = Math.max(MIN_BPM, Math.min(MAX_BPM, this.bpm + Math.sign(e.delta) * 5));
+      else if (e.id === 2) this.changeKit(Math.sign(e.delta));
       else this.select(Math.sign(e.delta));
       return;
     }
     if (e.type === 'button' && e.down) {
       switch (e.action) {
+        case 'metronome':
+          return this.toggleMetronome();
         case 'up':
         case 'prev':
           if (p.name === 'choose') this.select(-1);
@@ -143,6 +204,10 @@ export class RhythmCopyGame implements Game {
     if (t >= p.playStartT - WINDOW_MARGIN_MS && t <= p.endT + WINDOW_MARGIN_MS) this.hits.push({ pad: e.pad, t });
   }
 
+  onTap(x: number, y: number): void {
+    if (inRect(this.clickToggle, x, y)) this.toggleMetronome();
+  }
+
   // -------------------------------------------------------------------------
   // Drawing
   // -------------------------------------------------------------------------
@@ -152,6 +217,7 @@ export class RhythmCopyGame implements Game {
     const kid = this.ctx.settings().kidUi;
     const unit = Math.min(w, h) * 0.08;
     clear(g, w, h);
+    this.drawMetronomeToggle(g, w, unit);
 
     const pat = this.pattern;
     text(g, `🥁 ${pat.name}`, w / 2, unit, unit * 0.8);
@@ -159,18 +225,10 @@ export class RhythmCopyGame implements Game {
     const gridH = h * 0.45;
 
     if (p.name === 'choose') {
-      text(g, `${this.index + 1} / ${PATTERNS.length}   ·   ${this.bpm} BPM`, w / 2, unit * 1.9, unit * 0.4, THEME.muted, 'center', 600);
+      text(g, `${this.index + 1} / ${PATTERNS.length}   ·   ${this.bpm} BPM   ·   ${KITS.find((k) => k.id === this.ctx.settings().kitId)?.name ?? ''}`, w / 2, unit * 1.9, unit * 0.4, THEME.muted, 'center', 600);
       this.drawGrid(g, w, gridTop + unit * 0.5, gridH, null, null);
-      text(
-        g,
-        kid ? '◀ ▶ pick · ▶ Play' : 'Knob 1 or ▲▼ pattern · knob 2 tempo · ▶ Play to start · ■ menu',
-        w / 2,
-        h - unit,
-        unit * 0.38,
-        THEME.muted,
-        'center',
-        500,
-      );
+      const hint = kid ? '◀ ▶ pick · ▶ Play' : 'Knob 1 or ▲▼ pattern · knob 2 tempo · knob 3 kit · Click = metronome · ▶ Play · ■ menu';
+      text(g, hint, w / 2, h - unit, fitSize(g, hint, w * 0.88, unit * 0.38, 500), THEME.muted, 'center', 500);
       return;
     }
 
@@ -217,6 +275,20 @@ export class RhythmCopyGame implements Game {
       600,
     );
     text(g, kid ? '▶ again' : '▶ again · ▶▶ next pattern (Right) · ■ choose', w / 2, h - unit * 0.7, unit * 0.36, THEME.muted, 'center', 500);
+  }
+
+  /** Top-right pill; tap it (or the ATOM Click button) to switch the metronome. */
+  private drawMetronomeToggle(g: CanvasRenderingContext2D, w: number, unit: number): void {
+    const on = this.metronomeOn;
+    const label = on ? '🔔 Click on' : '🔕 Click off';
+    const size = Math.max(13, unit * 0.36);
+    g.font = `600 ${Math.round(size)}px ${THEME.font}`;
+    const bw = g.measureText(label).width + size * 1.4;
+    const bh = size * 2.2;
+    const r = { x: w - bw - unit * 0.3, y: unit * 0.25, w: bw, h: bh };
+    roundRect(g, r.x, r.y, r.w, r.h, bh / 2, on ? '#1f3b2a' : THEME.panel);
+    text(g, label, r.x + r.w / 2, r.y + r.h / 2, size, on ? THEME.good : THEME.muted, 'center', 600);
+    this.clickToggle = r;
   }
 
   /** Steps across, one row per pad used. In results, each cell shows a dot per play-through. */

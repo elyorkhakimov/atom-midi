@@ -17,6 +17,29 @@ interface Voice {
 
 export const MAX_VOICES = 32;
 const STEAL_FADE_S = 0.008;
+/** Kit samples are normalized to -1 dBFS; leave room for a full groove plus the click. */
+const KIT_BUS_GAIN = 0.55;
+/** The soft clipper is linear up to this level and handles input up to ±CLIP_INPUT_RANGE. */
+const CLIP_KNEE = 0.6;
+const CLIP_INPUT_RANGE = 2;
+
+/**
+ * Transparent below the knee, then saturates smoothly towards ±1 instead of
+ * hard-clipping. A WaveShaper adds no latency (unlike DynamicsCompressorNode's
+ * look-ahead), so it's safe on the live path.
+ */
+export function softClip(x: number): number {
+  const a = Math.abs(x);
+  if (a <= CLIP_KNEE) return x;
+  const head = 1 - CLIP_KNEE;
+  return Math.sign(x) * (CLIP_KNEE + head * Math.tanh((a - CLIP_KNEE) / head));
+}
+
+function softClipCurve(points = 4097): Float32Array<ArrayBuffer> {
+  const curve = new Float32Array(points);
+  for (let i = 0; i < points; i++) curve[i] = softClip(((i / (points - 1)) * 2 - 1) * CLIP_INPUT_RANGE);
+  return curve;
+}
 
 /**
  * Web Audio engine: sample kits with velocity layers, crossfades, round-robin,
@@ -42,8 +65,14 @@ export class AudioEngine {
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
     this.clock = new AudioClock(this.ctx);
     this.master = this.ctx.createGain();
-    this.master.connect(this.ctx.destination);
-    this.kitBus = this.bus(1);
+    // The shaper's curve covers ±1, so scale the mix into it; the curve scales back.
+    const range = this.ctx.createGain();
+    range.gain.value = 1 / CLIP_INPUT_RANGE;
+    const clipper = this.ctx.createWaveShaper();
+    clipper.curve = softClipCurve();
+    clipper.oversample = 'none';
+    this.master.connect(range).connect(clipper).connect(this.ctx.destination);
+    this.kitBus = this.bus(KIT_BUS_GAIN);
     this.metronomeBus = this.bus(0.7);
     this.cueBus = this.bus(0.8);
     this.cues = makeCues(this.ctx);
@@ -136,19 +165,18 @@ export class AudioEngine {
       const variants = layerBuffers[index] ?? [];
       const buffer = variants[this.roundRobin.pick(`${id}/${index}`, variants.length)];
       if (!buffer) continue;
-      let dest: AudioNode = this.kitBus;
+      let filter: BiquadFilterNode | undefined;
       if (def.velocityFilter) {
-        const f = this.ctx.createBiquadFilter();
-        f.type = 'lowpass';
-        f.frequency.value = 600 + (velocity / 127) ** 2 * 16000;
-        f.connect(this.kitBus);
-        dest = f;
+        filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 600 + (velocity / 127) ** 2 * 16000;
+        filter.connect(this.kitBus);
       }
-      this.startVoice(buffer, baseGain * gain, t, dest, def.chokeGroup);
+      this.startVoice(buffer, baseGain * gain, t, filter ?? this.kitBus, def.chokeGroup, filter);
     }
   }
 
-  private startVoice(buffer: AudioBuffer, gain: number, t: number, dest: AudioNode, chokeGroup?: string): void {
+  private startVoice(buffer: AudioBuffer, gain: number, t: number, dest: AudioNode, chokeGroup?: string, filter?: AudioNode): void {
     while (this.voices.length >= MAX_VOICES) this.release(this.voices[0]!, t);
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
@@ -158,6 +186,7 @@ export class AudioEngine {
     const voice: Voice = { source, gain: g, start: t, chokeGroup };
     source.onended = () => {
       g.disconnect();
+      filter?.disconnect();
       this.voices = this.voices.filter((v) => v !== voice);
     };
     source.start(t);
@@ -184,6 +213,32 @@ export class AudioEngine {
   // -------------------------------------------------------------------------
   // Cues and metronome
   // -------------------------------------------------------------------------
+  /**
+   * Swaps in the recorded cue sounds from public/sounds/. Any that fail to load
+   * keep their synthesized version, so this never blocks or breaks playback.
+   */
+  async loadCueFiles(): Promise<void> {
+    const base = `${import.meta.env.BASE_URL}sounds/`;
+    try {
+      const res = await fetch(`${base}cues.json`);
+      if (!res.ok) return;
+      const manifest = (await res.json()) as Partial<Record<CueName, string>>;
+      await Promise.all(
+        Object.entries(manifest).map(async ([name, file]) => {
+          if (!(name in this.cues) || !file) return;
+          try {
+            const r = await fetch(base + file);
+            if (r.ok) this.cues[name as CueName] = await this.ctx.decodeAudioData(await r.arrayBuffer());
+          } catch {
+            /* keep the synthesized cue */
+          }
+        }),
+      );
+    } catch {
+      /* offline or missing: synthesized cues stay */
+    }
+  }
+
   /** Returns a handle that can cancel the cue before it plays. */
   playCue(name: CueName, when?: number, gain = 1): { cancel(): void } {
     return this.playBuffer(this.cues[name], this.cueBus, when, gain);

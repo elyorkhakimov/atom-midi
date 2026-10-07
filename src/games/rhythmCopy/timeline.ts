@@ -16,6 +16,8 @@ export interface TimedNote {
 export interface Click {
   at: number;
   accent: boolean;
+  /** Count-in clicks always play, even with the metronome off. */
+  countIn: boolean;
 }
 
 export interface RhythmTimeline {
@@ -48,8 +50,8 @@ export function buildTimeline(pattern: Pattern, bpm: number, start: number): Rhy
       .sort((a, b) => a.at - b.at);
 
   const clicks: Click[] = [];
-  const addBeats = (from: number, count: number, accentEvery: number) => {
-    for (let i = 0; i < count; i++) clicks.push({ at: from + i * beat, accent: i % accentEvery === 0 });
+  const addBeats = (from: number, count: number, accentEvery: number, countIn = false) => {
+    for (let i = 0; i < count; i++) clicks.push({ at: from + i * beat, accent: i % accentEvery === 0, countIn });
   };
 
   const demoStart = start;
@@ -58,7 +60,7 @@ export function buildTimeline(pattern: Pattern, bpm: number, start: number): Rhy
   const end = playStart + PLAY_LOOPS * loopDur;
 
   addBeats(demoStart, DEMO_LOOPS * beatsPerLoop, 4);
-  addBeats(countInStart, COUNT_IN_BEATS, 1); // every count-in click accented
+  addBeats(countInStart, COUNT_IN_BEATS, 1, true); // every count-in click accented
   addBeats(playStart, PLAY_LOOPS * beatsPerLoop, 4);
 
   return { stepDur, loopDur, demoStart, countInStart, playStart, end, demoNotes: notes(demoStart, DEMO_LOOPS), expected: notes(playStart, PLAY_LOOPS), clicks };

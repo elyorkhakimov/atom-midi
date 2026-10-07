@@ -1,10 +1,9 @@
 import type { ControllerEvent, PadController } from '../midi/padController';
 import { buttonAction, type InputEvent } from './events';
-import { DoubleTriggerGuard, applyCurve, calibrateVelocity, type PadCalibration } from './velocity';
+import { DoubleTriggerGuard, applyCurve } from './velocity';
 
 export interface InputShaping {
-  calibration: readonly (PadCalibration | null)[];
-  /** Calibrated velocities below this are ghost hits and dropped. */
+  /** Raw velocities below this are ghost hits and dropped. */
   threshold: number;
   curveGamma: number;
   doubleTriggerMs: number;
@@ -24,9 +23,6 @@ export class InputBus {
   /** Pads whose down was dropped; their up is dropped too. */
   private readonly dropped = new Set<number>();
   private readonly heldButtons = new Set<string>();
-  /** Pad calibration needs raw velocities: no calibration, threshold or curve. */
-  bypassShaping = false;
-
   constructor(private readonly shaping: () => InputShaping) {}
 
   attach(controller: PadController): () => void {
@@ -63,14 +59,12 @@ export class InputBus {
     const s = this.shaping();
     switch (e.type) {
       case 'padDown': {
-        if (this.bypassShaping) return { type: 'padDown', pad: e.pad, velocity: e.velocity, raw: e.velocity, t: e.t };
-        const calibrated = calibrateVelocity(e.velocity, s.calibration[e.pad]);
-        if (calibrated < s.threshold || !this.guard.accept(e.pad, e.velocity, e.t, s.doubleTriggerMs)) {
+        if (e.velocity < s.threshold || !this.guard.accept(e.pad, e.velocity, e.t, s.doubleTriggerMs)) {
           this.dropped.add(e.pad);
           return null;
         }
         this.dropped.delete(e.pad);
-        return { type: 'padDown', pad: e.pad, velocity: applyCurve(calibrated, s.curveGamma), raw: e.velocity, t: e.t };
+        return { type: 'padDown', pad: e.pad, velocity: applyCurve(e.velocity, s.curveGamma), raw: e.velocity, t: e.t };
       }
       case 'padUp':
         if (this.dropped.delete(e.pad)) return null;

@@ -1,7 +1,6 @@
 import { GameScreen } from './GameScreen';
 import { LatencyCalibrationScreen } from './LatencyCalibrationScreen';
 import { MainMenu } from './MainMenu';
-import { PadCalibrationScreen } from './PadCalibrationScreen';
 import { route } from './router';
 import { SettingsScreen } from './SettingsScreen';
 import { SetupPrompt } from './SetupPrompt';
@@ -24,8 +23,6 @@ export function App() {
           <MainMenu />
         ) : r.name === 'settings' ? (
           <SettingsScreen />
-        ) : r.name === 'calPads' ? (
-          <PadCalibrationScreen back={r.back} />
         ) : r.name === 'calLatency' ? (
           <LatencyCalibrationScreen back={r.back} />
         ) : (

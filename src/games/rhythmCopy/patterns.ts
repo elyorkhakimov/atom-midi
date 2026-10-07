@@ -1,6 +1,6 @@
 /**
  * Built-in patterns. Steps are 16th notes (0–15 per bar). Pads follow the
- * kit layout: 0 kick, 1 snare, 2 closed hat, 3 open hat, 4–6 toms, 7 clap.
+ * kit layout every kit shares: 0 kick, 1 snare, 2 closed hat, 3 open hat, 4–6 toms (low to high), 7 clap.
  */
 export interface Pattern {
   id: string;

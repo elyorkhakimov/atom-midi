@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "kits": "node tools/kit-gen/make-electronic-kit.ts"
+    "kits": "node tools/kit-gen/make-electronic-kit.ts",
+    "kits:samples": "node tools/kit-gen/build-sample-kits.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

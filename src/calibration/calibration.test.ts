@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { computeLatencyOffset } from './latency';
-import { computePadCalibration } from './padCalibration';
 import { median, trimmedMean } from './stats';
 
 describe('stats', () => {
@@ -8,16 +7,6 @@ describe('stats', () => {
     expect(median([3, 1, 2])).toBe(2);
     expect(median([4, 1, 2, 3])).toBe(2.5);
     expect(trimmedMean([0, 10, 10, 10, 10, 10, 10, 10, 10, 1000], 0.1)).toBe(10);
-  });
-});
-
-describe('computePadCalibration', () => {
-  it('uses medians, robust to one stray tap', () => {
-    expect(computePadCalibration([30, 34, 90], [110, 115, 60])).toEqual({ soft: 34, hard: 110 });
-  });
-  it('rejects too few taps or no spread', () => {
-    expect(computePadCalibration([30, 30], [100, 100, 100])).toBeNull();
-    expect(computePadCalibration([60, 62, 64], [65, 66, 67])).toBeNull();
   });
 });
 

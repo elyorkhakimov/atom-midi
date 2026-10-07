@@ -1,0 +1,13 @@
+{
+  "click": "click.wav",
+  "clickAccent": "clickAccent.wav",
+  "tick": "tick.wav",
+  "select": "select.wav",
+  "win": "win.wav",
+  "fail": "fail.wav",
+  "record": "record.wav",
+  "youWin": "youWin.wav",
+  "zone0": "zone0.wav",
+  "zone1": "zone1.wav",
+  "zone3": "zone3.wav"
+}

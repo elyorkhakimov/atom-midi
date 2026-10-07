@@ -1,0 +1,333 @@
+{
+  "id": "fun",
+  "name": "Animals & FX",
+  "description": "Farm animals, boings, lasers and power-ups",
+  "license": "CC0-1.0",
+  "source": "All CC0: OpenGameArt \"Baby Animals – Sounds Pack\", \"Dog sounds\" (pauliuw), \"Cat purr meow\" (Kerzoven), \"Sci-fi aliens and cows pack\" (qubodup), \"spring sounds\" (bart); Kenney Digital Audio and Impact Sounds (kenney.nl).",
+  "sampleRate": 48000,
+  "pads": [
+    "dog",
+    "cat",
+    "cow",
+    "sheep",
+    "chick",
+    "piglet",
+    "horse",
+    "goat",
+    "boing",
+    "boing2",
+    "laser",
+    "zap",
+    "powerUp",
+    "phaserUp",
+    "phaserDown",
+    "bell"
+  ],
+  "instruments": {
+    "dog": {
+      "name": "Dog",
+      "color": [
+        127,
+        60,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "dog_1_1.wav",
+            "dog_1_2.wav",
+            "dog_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "cat": {
+      "name": "Cat",
+      "color": [
+        127,
+        110,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "cat_1_1.wav",
+            "cat_1_2.wav"
+          ]
+        }
+      ]
+    },
+    "cow": {
+      "name": "Cow",
+      "color": [
+        127,
+        127,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "cow_1_1.wav",
+            "cow_1_2.wav"
+          ]
+        }
+      ]
+    },
+    "sheep": {
+      "name": "Sheep",
+      "color": [
+        110,
+        110,
+        90
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "sheep_1_1.wav"
+          ]
+        }
+      ]
+    },
+    "chick": {
+      "name": "Chick",
+      "color": [
+        127,
+        127,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "chick_1_1.wav"
+          ]
+        }
+      ]
+    },
+    "piglet": {
+      "name": "Piglet",
+      "color": [
+        127,
+        40,
+        80
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "piglet_1_1.wav"
+          ]
+        }
+      ]
+    },
+    "horse": {
+      "name": "Horse",
+      "color": [
+        90,
+        40,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "horse_1_1.wav"
+          ]
+        }
+      ]
+    },
+    "goat": {
+      "name": "Goat",
+      "color": [
+        80,
+        127,
+        60
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "goat_1_1.wav"
+          ]
+        }
+      ]
+    },
+    "boing": {
+      "name": "Boing",
+      "color": [
+        0,
+        127,
+        60
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "boing_1_1.wav",
+            "boing_1_2.wav",
+            "boing_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "boing2": {
+      "name": "Big boing",
+      "color": [
+        0,
+        127,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "boing2_1_1.wav",
+            "boing2_1_2.wav",
+            "boing2_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "laser": {
+      "name": "Laser",
+      "color": [
+        127,
+        0,
+        0
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "laser_1_1.wav",
+            "laser_1_2.wav",
+            "laser_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "zap": {
+      "name": "Zap",
+      "color": [
+        0,
+        90,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "zap_1_1.wav",
+            "zap_1_2.wav"
+          ]
+        }
+      ]
+    },
+    "powerUp": {
+      "name": "Power-up",
+      "color": [
+        60,
+        0,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "powerUp_1_1.wav",
+            "powerUp_1_2.wav",
+            "powerUp_1_3.wav"
+          ]
+        }
+      ]
+    },
+    "phaserUp": {
+      "name": "Whoosh up",
+      "color": [
+        0,
+        127,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "phaserUp_1_1.wav",
+            "phaserUp_1_2.wav"
+          ]
+        }
+      ]
+    },
+    "phaserDown": {
+      "name": "Whoosh down",
+      "color": [
+        0,
+        60,
+        127
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "phaserDown_1_1.wav",
+            "phaserDown_1_2.wav"
+          ]
+        }
+      ]
+    },
+    "bell": {
+      "name": "Bell",
+      "color": [
+        127,
+        90,
+        40
+      ],
+      "velocityFilter": true,
+      "layers": [
+        {
+          "minVelocity": 1,
+          "maxVelocity": 127,
+          "samples": [
+            "bell_1_1.wav",
+            "bell_1_2.wav",
+            "bell_1_3.wav"
+          ]
+        }
+      ]
+    }
+  }
+}

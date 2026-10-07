@@ -3,3 +3,6 @@ dist
 .DS_Store
 .obsidian
 *.local
+
+# Raw downloaded sample sources (converted kits live in public/kits)
+samples-src

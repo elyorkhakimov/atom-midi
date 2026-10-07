@@ -1,29 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DoubleTriggerGuard, SOFT_TARGET, applyCurve, calibrateVelocity } from './velocity';
-
-describe('calibrateVelocity', () => {
-  const cal = { soft: 40, hard: 110 };
-  it('maps soft to 20 and hard to 127', () => {
-    expect(calibrateVelocity(40, cal)).toBe(SOFT_TARGET);
-    expect(calibrateVelocity(110, cal)).toBe(127);
-    expect(calibrateVelocity(127, cal)).toBe(127);
-  });
-  it('is linear between and below the references', () => {
-    expect(calibrateVelocity(75, cal)).toBe(Math.round(20 + (35 / 70) * 107));
-    expect(calibrateVelocity(20, cal)).toBe(10);
-    expect(calibrateVelocity(1, cal)).toBe(1);
-  });
-  it('makes two differently sensitive pads agree', () => {
-    const lively = { soft: 60, hard: 120 };
-    const dull = { soft: 25, hard: 90 };
-    expect(calibrateVelocity(60, lively)).toBe(calibrateVelocity(25, dull));
-    expect(calibrateVelocity(120, lively)).toBe(calibrateVelocity(90, dull));
-  });
-  it('passes raw through without calibration', () => {
-    expect(calibrateVelocity(64, null)).toBe(64);
-    expect(calibrateVelocity(64, { soft: 50, hard: 50 })).toBe(64);
-  });
-});
+import { DoubleTriggerGuard, applyCurve } from './velocity';
 
 describe('applyCurve', () => {
   it('keeps the ends fixed and bends the middle', () => {

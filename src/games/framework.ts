@@ -26,7 +26,20 @@ export interface Game {
   start(ctx: GameContext): void;
   onInput(e: InputEvent): void;
   draw(g: CanvasRenderingContext2D, w: number, h: number, now: number): void;
+  /** Touch/click on the canvas, in the same CSS-pixel coordinates as draw(). */
+  onTap?(x: number, y: number): void;
   stop(): void;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export function inRect(r: Rect | null | undefined, x: number, y: number): boolean {
+  return !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 }
 
 export interface GameInfo {

@@ -36,15 +36,16 @@ M = Click (metronome), `[ ]` `; '` `, .` `/ \` = knobs 1–4.
 
 ```
 src/midi/         ATOM protocol map, driver (PadController), LED frame writer, Web MIDI helpers
-src/input/        Normalized events, velocity calibration/curve/threshold, double-trigger guard, keyboard
-src/calibration/  Pad calibration and latency (tap-along) maths
+src/input/        Normalized events, velocity curve/threshold, double-trigger guard, keyboard
+src/calibration/  Latency maths: tap-along offset, acoustic loopback
 src/audio/        Engine (layers, crossfade, round-robin, choke, voice stealing), clock, cues, metronome
 src/games/        Framework, players, and one folder per game
 src/ui/           Preact screens, routing, runtime wiring
 src/storage/      localStorage persistence, settings, best scores
 public/kits/      Sound kits (kit.json + WAV)
-tools/            ATOM protocol test page, MIDI monitor, kit generator
+tools/            ATOM protocol test page, MIDI monitor, audio latency test, kit generator
 ```
 
-Tools: `/tools/atom-test/` and `/tools/midi-monitor/` (also linked from Settings).
+Tools: `/tools/atom-test/`, `/tools/midi-monitor/` and `/tools/latency-test/` (speaker→mic loopback, compares
+Chrome latency settings; also linked from Settings).
 Protocol notes and device results: `docs/atom-protocol.md`. Licenses: `LICENSES.md`.
