@@ -23,6 +23,11 @@ export interface Settings {
   /** Free Jam: last page (drums, synth presets, custom synth). */
   jamPage: number;
   synthCustom: SynthPatch;
+  /** Velocity every pad plays at while the ATOM's Full Level button is on. */
+  fullLevelVelocity: number;
+  /** Free Jam synth pages: key change in semitones, and a filter multiplier (1 = as designed). */
+  jamTranspose: number;
+  jamTone: number;
   setupPromptSeen: boolean;
 }
 
@@ -47,6 +52,9 @@ export const DEFAULT_SETTINGS: Settings = {
   reactionCue: 'sound',
   jamPage: 0,
   synthCustom: DEFAULT_CUSTOM_PATCH,
+  fullLevelVelocity: 110,
+  jamTranspose: 0,
+  jamTone: 1,
   setupPromptSeen: false,
 };
 

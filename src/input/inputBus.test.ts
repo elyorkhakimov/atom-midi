@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { KnobDetents } from './knob';
 import type { InputEvent } from './events';
 import { InputBus, type InputShaping } from './inputBus';
 import { applyCurve } from './velocity';
@@ -44,5 +45,17 @@ describe('InputBus', () => {
     pop();
     bus.feed({ type: 'encoder', id: 0, delta: 1, t: 2 });
     expect([a.length, b.length, m.length]).toEqual([1, 1, 2]);
+  });
+});
+
+describe('knob detents', () => {
+  it('needs several ticks per step, per knob, and restarts on reversal', () => {
+    const k = new KnobDetents();
+    expect([1, 1, 1, 1].map(() => k.step(0, 1, 2))).toEqual([0, 1, 0, 1]);
+    expect(k.step(1, 1, 2)).toBe(0); // separate knob
+    expect(k.step(0, 1, 2)).toBe(0);
+    expect(k.step(0, -1, 2)).toBe(0); // reversal drops the pending tick
+    expect(k.step(0, -1, 2)).toBe(-1);
+    expect(k.step(0, 9, 4)).toBe(0); // acceleration capped at 2 ticks
   });
 });

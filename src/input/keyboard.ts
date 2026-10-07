@@ -5,7 +5,8 @@ import type { ControllerEvent } from '../midi/padController';
  * Keyboard stand-in for the ATOM (development and testing without hardware).
  * Pads: rows from the bottom  Z X C V / A S D F / Q W E R / 1 2 3 4.
  * Velocity 100; hold Shift for 127, Alt for 35.
- * Buttons: Space = Play, Esc = Stop, Enter = Select, arrows = nav, M = Click.
+ * Buttons: Space = Play, Esc = Stop, Enter = Select, arrows = nav, M = Click,
+ * H = Shift (hold), L = Full Level.
  * Knobs: [ ] = knob 1, ; ' = knob 2, , . = knob 3, / \ = knob 4.
  */
 const PAD_KEYS = ['z', 'x', 'c', 'v', 'a', 's', 'd', 'f', 'q', 'w', 'e', 'r', '1', '2', '3', '4'];
@@ -18,6 +19,8 @@ const BUTTON_KEYS: Record<string, ButtonId> = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
   m: 'click',
+  h: 'shift',
+  l: 'fullLevel',
 };
 const KNOB_KEYS: Record<string, [number, number]> = {
   '[': [0, -1], ']': [0, 1], ';': [1, -1], "'": [1, 1], ',': [2, -1], '.': [2, 1], '/': [3, -1], '\\': [3, 1],

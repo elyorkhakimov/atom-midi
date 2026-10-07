@@ -135,9 +135,10 @@ export function isRoot(pad: number, scale: ScaleName): boolean {
   return pad % SCALES[scale].length === 0;
 }
 
-export function padFrequency(pad: number, patch: SynthPatch): number {
+/** `transpose` shifts every pad by semitones (a key change). */
+export function padFrequency(pad: number, patch: SynthPatch, transpose = 0): number {
   const c0 = 16.3516;
-  return c0 * 2 ** patch.octave * 2 ** (padSemitone(pad, patch.scale) / 12);
+  return c0 * 2 ** patch.octave * 2 ** ((padSemitone(pad, patch.scale) + transpose) / 12);
 }
 
 /** Square and saw are much louder than sine at the same amplitude. */
@@ -163,7 +164,7 @@ export class SynthVoices {
     private readonly out: AudioNode,
   ) {}
 
-  noteOn(pad: number, velocity: number, patch: SynthPatch): void {
+  noteOn(pad: number, velocity: number, patch: SynthPatch, transpose = 0): void {
     const ctx = this.ctx;
     const t = ctx.currentTime;
     for (const v of this.voices.filter((v) => v.pad === pad)) this.release(v, t, 0.03);
@@ -171,7 +172,7 @@ export class SynthVoices {
 
     const vel = clamp(velocity, 1, 127) / 127;
     const peak = 0.5 * patch.level * WAVE_GAIN[patch.wave] * vel ** 2 / (patch.detune > 0 ? 1.4 : 1);
-    const freq = padFrequency(pad, patch);
+    const freq = padFrequency(pad, patch, transpose);
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
