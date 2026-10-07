@@ -1,4 +1,5 @@
 import type { ReactionCue, ReactionMode } from '../games/reaction/logic';
+import { DEFAULT_CUSTOM_PATCH, type SynthPatch } from '../audio/synth';
 import type { CurveName } from '../input/velocity';
 
 export interface Settings {
@@ -19,6 +20,9 @@ export interface Settings {
   rhythmMetronome: boolean;
   reactionMode: ReactionMode;
   reactionCue: ReactionCue;
+  /** Free Jam: last page (drums, synth presets, custom synth). */
+  jamPage: number;
+  synthCustom: SynthPatch;
   setupPromptSeen: boolean;
 }
 
@@ -41,6 +45,8 @@ export const DEFAULT_SETTINGS: Settings = {
   rhythmMetronome: true,
   reactionMode: 'classic',
   reactionCue: 'sound',
+  jamPage: 0,
+  synthCustom: DEFAULT_CUSTOM_PATCH,
   setupPromptSeen: false,
 };
 

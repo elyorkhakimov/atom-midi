@@ -1,5 +1,6 @@
 import { AudioClock } from './clock';
 import { makeCues, type CueName } from './cues';
+import { SynthVoices } from './synth';
 import { RoundRobin, selectLayers, velocityGain, type KitJson } from './kit';
 
 interface LoadedKit {
@@ -50,6 +51,7 @@ export class AudioEngine {
   readonly ctx: AudioContext;
   readonly clock: AudioClock;
   kit: LoadedKit | null = null;
+  readonly synth: SynthVoices;
 
   private readonly master: GainNode;
   private readonly kitBus: GainNode;
@@ -75,6 +77,7 @@ export class AudioEngine {
     this.kitBus = this.bus(KIT_BUS_GAIN);
     this.metronomeBus = this.bus(0.7);
     this.cueBus = this.bus(0.8);
+    this.synth = new SynthVoices(this.ctx, this.bus(KIT_BUS_GAIN));
     this.cues = makeCues(this.ctx);
   }
 
@@ -205,9 +208,10 @@ export class AudioEngine {
     }
   }
 
-  /** Stops all kit voices (e.g. leaving a game). */
+  /** Stops all kit and synth voices (e.g. leaving a game). */
   stopAll(): void {
     for (const v of [...this.voices]) this.release(v, this.ctx.currentTime);
+    this.synth.stopAll();
   }
 
   // -------------------------------------------------------------------------

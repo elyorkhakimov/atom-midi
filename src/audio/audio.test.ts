@@ -3,6 +3,7 @@ import acousticKit from '../../public/kits/acoustic/kit.json';
 import electroKit from '../../public/kits/electro/kit.json';
 import { softClip } from './engine';
 import { audioToPerf, perfToAudio } from './clock';
+import { PARAM_ROWS, SYNTH_PRESETS, isRoot, padFrequency, padSemitone, sanitizePatch, stepParam } from './synth';
 import { RoundRobin, selectLayers, velocityGain, type KitJson, type KitLayer } from './kit';
 
 describe('clock conversion', () => {
@@ -65,4 +66,34 @@ describe('drum kit layouts', () => {
       ROLES.forEach((role, pad) => expect(kit.instruments[kit.pads[pad]!]!.name).toMatch(role));
     });
   }
+});
+
+describe('synth', () => {
+  const pluck = SYNTH_PRESETS.pluck.patch;
+  it('pluck matches the ATOM test page: pad 0 is middle C, pentatonic upwards', () => {
+    expect(padFrequency(0, pluck)).toBeCloseTo(261.63, 1);
+    expect([0, 1, 2, 3, 4, 5].map((p) => padSemitone(p, 'pentatonic'))).toEqual([0, 2, 4, 7, 9, 12]);
+    expect(isRoot(5, 'pentatonic')).toBe(true);
+    expect(padSemitone(15, 'chromatic')).toBe(15);
+  });
+  it('steps parameters within range; choices wrap', () => {
+    const [waveDef, octaveDef] = PARAM_ROWS[0]!;
+    expect(stepParam(pluck, waveDef!, 1).wave).toBe('square');
+    expect(stepParam({ ...pluck, wave: 'sawtooth' }, waveDef!, 1).wave).toBe('sine');
+    expect(stepParam(pluck, waveDef!, -1).wave).toBe('sine');
+    expect(stepParam(pluck, octaveDef!, 10).octave).toBe(6);
+    const sustain = PARAM_ROWS[1]![2]!;
+    expect(stepParam(pluck, sustain, 3).sustain).toBeCloseTo(0.15, 9);
+    const attack = PARAM_ROWS[1]![0]!;
+    expect(stepParam(pluck, attack, -5).attack).toBe(0.002);
+    expect(stepParam(pluck, attack, 1).attack).toBeCloseTo(0.0023, 9);
+  });
+  it('sanitizes saved patches', () => {
+    expect(sanitizePatch(undefined)).toEqual(pluck);
+    const p = sanitizePatch({ wave: 'nope' as never, cutoff: 1e9, decay: Number.NaN, octave: 2 });
+    expect(p.wave).toBe(pluck.wave);
+    expect(p.cutoff).toBe(12000);
+    expect(p.decay).toBe(pluck.decay);
+    expect(p.octave).toBe(2);
+  });
 });
