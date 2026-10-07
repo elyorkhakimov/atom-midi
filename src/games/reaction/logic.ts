@@ -5,6 +5,9 @@ import { PAD_COLS, PAD_ROWS } from '../../midi/atomMap';
 export type ReactionMode = 'classic' | 'match2' | 'match4';
 export const REACTION_MODES: readonly ReactionMode[] = ['classic', 'match2', 'match4'];
 
+/** What says GO: a sound, or only the pad lights (no sound at all). */
+export type ReactionCue = 'sound' | 'lights';
+
 export function zoneCount(mode: ReactionMode): number {
   return mode === 'match2' ? 2 : mode === 'match4' ? 4 : 1;
 }
@@ -28,8 +31,6 @@ export function pickZone(zones: number, history: readonly number[], rand: () => 
   return options[Math.floor(rand() * options.length)] ?? 0;
 }
 
-/** Hits before GO, or less than this after it, are false starts (nobody reacts that fast). */
-export const FALSE_START_MS = 100;
 export const MIN_DELAY_MS = 2000;
 export const MAX_DELAY_MS = 6000;
 /** No hit within this long after GO ends the round as "too slow". */
@@ -39,11 +40,12 @@ export function randomDelayMs(rand: () => number = Math.random): number {
   return MIN_DELAY_MS + rand() * (MAX_DELAY_MS - MIN_DELAY_MS);
 }
 
-export type Judgement = { kind: 'falseStart'; beforeGo: boolean } | { kind: 'ok'; ms: number };
+/** `ms` is hit time minus GO. Only a hit before GO is a false start; any hit after it counts. */
+export type Judgement = { kind: 'falseStart'; ms: number } | { kind: 'ok'; ms: number };
 
 export function judgeHit(hitT: number, goT: number): Judgement {
   const ms = hitT - goT;
-  if (ms < FALSE_START_MS) return { kind: 'falseStart', beforeGo: ms < 0 };
+  if (ms < 0) return { kind: 'falseStart', ms };
   return { kind: 'ok', ms };
 }
 

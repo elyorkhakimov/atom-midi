@@ -33,9 +33,24 @@ function percentRow(label: string, key: 'masterVolume' | 'metronomeVolume' | 'le
 
 export function SettingsScreen() {
   const [focus, setFocus] = useState(0);
-  const [confirmReset, setConfirmReset] = useState(false);
+  /** Label of the destructive row waiting for a second press, if any. */
+  const [confirm, setConfirm] = useState<string | null>(null);
   const s = settings.value;
   useEffect(() => getRuntime().controller.reset(), []);
+
+  /** An action that needs a second press. */
+  const confirmRow = (id: string, label: string, detail: () => string, action: () => void): ActionRow => ({
+    kind: 'action',
+    label: confirm === id ? `Really ${label.charAt(0).toLowerCase()}${label.slice(1)}?` : label,
+    detail: () => (confirm === id ? 'press again to confirm' : detail()),
+    run: () => {
+      if (confirm === id) {
+        action();
+        getRuntime().audio.playCue('select');
+        setConfirm(null);
+      } else setConfirm(id);
+    },
+  });
 
   const rows: Row[] = [
     percentRow('Master volume', 'masterVolume'),
@@ -76,17 +91,12 @@ export function SettingsScreen() {
       detail: () => (s.latencyCalibrated ? `offset ${s.latencyOffsetMs >= 0 ? '+' : ''}${Math.round(s.latencyOffsetMs)} ms` : 'not calibrated'),
       run: () => go({ name: 'calLatency', back: 'settings' }),
     },
-    {
-      kind: 'action',
-      label: confirmReset ? 'Really reset best scores?' : 'Reset best scores',
-      detail: () => (confirmReset ? 'press again to confirm' : `${Object.keys(bests.value).length} records`),
-      run: () => {
-        if (confirmReset) {
-          bests.value = {};
-          setConfirmReset(false);
-        } else setConfirmReset(true);
-      },
-    },
+    confirmRow('clearTiming', 'Clear timing calibration', () => (s.latencyCalibrated ? 'back to no correction (0 ms)' : 'nothing to clear'), () =>
+      updateSettings({ latencyOffsetMs: 0, latencyCalibrated: false }),
+    ),
+    confirmRow('resetBests', 'Reset best scores', () => `${Object.keys(bests.value).length} records`, () => {
+      bests.value = {};
+    }),
   ];
 
   const change = (i: number, d: number) => {
@@ -104,7 +114,7 @@ export function SettingsScreen() {
 
   const moveFocus = (d: number) => {
     setFocus((f) => clamp(f + d, 0, rows.length - 1));
-    setConfirmReset(false);
+    setConfirm(null);
   };
 
   useInput((e) => {

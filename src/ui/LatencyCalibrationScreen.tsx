@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { computeLatencyOffset, type LatencyResult } from '../calibration/latency';
+import { MAX_PLAUSIBLE_OFFSET_MS, computeLatencyOffset, plausibleOffset, type LatencyResult } from '../calibration/latency';
 import { PAD_COUNT } from '../midi/atomMap';
 import { useInput } from './hooks';
 import { go, type Route } from './router';
@@ -10,6 +10,9 @@ const COUNT_IN = 4;
 const BEATS = 16;
 /** Above this spread the taps weren't steady enough to trust. */
 const MAX_STDDEV_MS = 45;
+
+/** Steady enough, and not a "reacting to the click" result (see MAX_PLAUSIBLE_OFFSET_MS). */
+const usable = (r: LatencyResult | null): r is LatencyResult => !!r && r.stdDevMs <= MAX_STDDEV_MS && plausibleOffset(r.offsetMs);
 
 type Phase = { name: 'intro' } | { name: 'running'; beats: number[]; countIn: number[]; end: number } | { name: 'result'; result: LatencyResult | null };
 
@@ -59,7 +62,7 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
     timers.current.push(
       setTimeout(() => {
         const result = computeLatencyOffset(taps.current, beats);
-        audio.playCue(result && result.stdDevMs <= MAX_STDDEV_MS ? 'select' : 'fail');
+        audio.playCue(usable(result) ? 'select' : 'fail');
         setPhase({ name: 'result', result });
       }, end - performance.now()),
     );
@@ -84,7 +87,7 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
       clearTimers();
       go({ name: back } as Route);
     } else if (e.action === 'start' || e.action === 'select') {
-      if (phase.name === 'result' && phase.result && phase.result.stdDevMs <= MAX_STDDEV_MS) save();
+      if (phase.name === 'result' && usable(phase.result)) save();
       else if (phase.name !== 'running') run();
     }
   });
@@ -96,7 +99,8 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
       {phase.name === 'intro' && (
         <>
           <p class="lead">
-            You'll hear {COUNT_IN} count-in clicks, then {BEATS} beats. <b>Tap any pad exactly with each beat.</b>
+            You'll hear {COUNT_IN} count-in clicks, then {BEATS} beats. <b>Tap any pad exactly with each beat</b> — play along like a
+            drummer, don't wait to hear the click.
           </p>
           <p class="muted">Current offset: {current}. Use the same headphones or speaker you'll play with.</p>
           <button class="big" onClick={run}>Start</button>
@@ -119,12 +123,19 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
                 spread ±{Math.round(phase.result.stdDevMs)} ms over {phase.result.samples} taps · previous: {current}
               </p>
               {phase.result.stdDevMs > MAX_STDDEV_MS && <p class="notice bad">Taps were too uneven to trust. Try again, tapping steadily.</p>}
+              {phase.result.stdDevMs <= MAX_STDDEV_MS && phase.result.offsetMs > MAX_PLAUSIBLE_OFFSET_MS && (
+                <p class="notice bad">
+                  Your taps came well after each click, so it looks like you waited to hear it. Try again and tap <b>at the same moment</b> as the
+                  click — count along “1, 2, 3, 4” and land on it.
+                </p>
+              )}
+              {phase.result.offsetMs < -MAX_PLAUSIBLE_OFFSET_MS && <p class="notice bad">Your taps were far ahead of the clicks. Try again, tapping right with them.</p>}
             </>
           ) : (
             <p class="notice bad">Not enough taps matched the beat. Try again.</p>
           )}
           <div class="row">
-            {phase.result && phase.result.stdDevMs <= MAX_STDDEV_MS && (
+            {usable(phase.result) && (
               <button class="big" onClick={save}>Save</button>
             )}
             <button onClick={run}>Try again</button>
@@ -132,7 +143,7 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
         </>
       )}
       <button class="back" onClick={() => go({ name: back } as Route)}>
-        Cancel
+        {back === 'menu' ? 'Skip' : 'Cancel'}
       </button>
     </div>
   );

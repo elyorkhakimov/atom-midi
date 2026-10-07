@@ -1,4 +1,4 @@
-import type { ReactionMode } from '../games/reaction/logic';
+import type { ReactionCue, ReactionMode } from '../games/reaction/logic';
 import type { CurveName } from '../input/velocity';
 
 export interface Settings {
@@ -18,6 +18,7 @@ export interface Settings {
   /** Rhythm copy: metronome during the demo and while playing (the count-in always clicks). */
   rhythmMetronome: boolean;
   reactionMode: ReactionMode;
+  reactionCue: ReactionCue;
   setupPromptSeen: boolean;
 }
 
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bluetoothWarningSeen: false,
   rhythmMetronome: true,
   reactionMode: 'classic',
+  reactionCue: 'sound',
   setupPromptSeen: false,
 };
 

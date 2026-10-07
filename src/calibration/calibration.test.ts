@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLatencyOffset } from './latency';
+import { computeLatencyOffset, plausibleOffset } from './latency';
 import { median, trimmedMean } from './stats';
 
 describe('stats', () => {
@@ -28,5 +28,13 @@ describe('computeLatencyOffset', () => {
 
   it('returns null with too few matching taps', () => {
     expect(computeLatencyOffset([beats[3]!, beats[4]!], beats)).toBeNull();
+  });
+});
+
+describe('plausibleOffset', () => {
+  it('accepts device delay plus tapping habit, rejects reacting to the click', () => {
+    expect(plausibleOffset(35)).toBe(true);
+    expect(plausibleOffset(-40)).toBe(true);
+    expect(plausibleOffset(190)).toBe(false);
   });
 });

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { PLAYERS, playerOfPad, playerPads } from './players';
-import { FALSE_START_MS, judgeHit, pickZone, randomDelayMs, resolveBattle, zoneOf } from './reaction/logic';
+import { judgeHit, pickZone, randomDelayMs, resolveBattle, zoneOf } from './reaction/logic';
 import { PATTERNS } from './rhythmCopy/patterns';
 import { scoreRhythm } from './rhythmCopy/scoring';
 import { COUNT_IN_BEATS, DEMO_LOOPS, PLAY_LOOPS, buildTimeline } from './rhythmCopy/timeline';
 
 describe('reaction', () => {
-  it('false start before GO and under 100 ms after', () => {
-    expect(judgeHit(990, 1000)).toEqual({ kind: 'falseStart', beforeGo: true });
-    expect(judgeHit(1000 + FALSE_START_MS - 1, 1000)).toEqual({ kind: 'falseStart', beforeGo: false });
+  it('false start only before GO; any hit after GO counts', () => {
+    expect(judgeHit(990, 1000)).toEqual({ kind: 'falseStart', ms: -10 });
+    expect(judgeHit(1030, 1000)).toEqual({ kind: 'ok', ms: 30 });
     expect(judgeHit(1250, 1000)).toEqual({ kind: 'ok', ms: 250 });
   });
   it('random delay is 2–6 s', () => {
@@ -61,7 +61,8 @@ describe('reaction battle', () => {
     expect(r.winner).toBe(1);
   });
   it('no winner when everyone jumps the gun', () => {
-    expect(resolveBattle([{ player: 0, t: 1050 }, { player: 1, t: 999 }], 2, 1000).winner).toBeNull();
+    expect(resolveBattle([{ player: 0, t: 990 }, { player: 1, t: 999 }], 2, 1000).winner).toBeNull();
+    expect(resolveBattle([{ player: 0, t: 1050 }, { player: 1, t: 999 }], 2, 1000).winner).toBe(0); // 50 ms after GO counts
   });
 });
 

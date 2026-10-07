@@ -8,6 +8,17 @@ export interface LatencyResult {
 }
 
 export const LATENCY_WINDOW_MS = 250;
+/**
+ * The offset should only hold device delay (unreported speaker/output latency, MIDI
+ * input) plus a small tapping habit. Anything bigger means the player reacted to each
+ * click instead of playing along with it; subtracting that from every hit would make
+ * normal reactions look impossibly fast (Reaction "Too early!").
+ */
+export const MAX_PLAUSIBLE_OFFSET_MS = 120;
+
+export function plausibleOffset(offsetMs: number): boolean {
+  return offsetMs <= MAX_PLAUSIBLE_OFFSET_MS && offsetMs >= -MAX_PLAUSIBLE_OFFSET_MS;
+}
 export const LATENCY_MIN_SAMPLES = 6;
 
 /**

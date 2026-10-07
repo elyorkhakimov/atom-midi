@@ -151,7 +151,7 @@ All stored per device.
 ### Single player
 | Game | Rules summary |
 |---|---|
-| ✓ Reaction (random) | GO after random 2–6 s; react; best time this session. Hits <100 ms after GO or before GO = false start |
+| ✓ Reaction (random) | GO after random 2–6 s; react; best time this session. Only a hit before GO is a false start (any hit after GO counts) |
 | Countdown | 3-2-1-GO with beeps (1 s apart); react without jumping early |
 | On the beat | 3-2-1, hit exactly on the 4th beat; score in ±ms |
 | ✓ Rhythm copy | App plays a pattern (1–2 bars, 120 BPM default) 3×, 4-click count-in, player plays it 3×. Match each hit to nearest expected hit on same pad within ±100 ms: points = 100×(1−|err|/100 ms); miss = 0; extra/wrong-pad hit = −25. Show % and average error in ms. 10 built-in patterns |

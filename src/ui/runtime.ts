@@ -1,5 +1,6 @@
 import { effect, signal } from '@preact/signals';
 import { AudioEngine } from '../audio/engine';
+import { plausibleOffset } from '../calibration/latency';
 import { InputBus } from '../input/inputBus';
 import { attachKeyboard } from '../input/keyboard';
 import { AtomDriver } from '../midi/atomDriver';
@@ -12,7 +13,12 @@ import { BESTS_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, type Bests, type Settings } 
 // ---------------------------------------------------------------------------
 // Persistent state (per device)
 // ---------------------------------------------------------------------------
-export const settings = signal<Settings>(load(SETTINGS_KEY, DEFAULT_SETTINGS));
+export const settings = signal<Settings>(sanitize(load(SETTINGS_KEY, DEFAULT_SETTINGS)));
+
+/** Offsets saved before the plausibility check (e.g. from reacting to the clicks) would break Reaction. */
+function sanitize(s: Settings): Settings {
+  return plausibleOffset(s.latencyOffsetMs) ? s : { ...s, latencyOffsetMs: 0, latencyCalibrated: false };
+}
 export const bests = signal<Bests>(load(BESTS_KEY, {}));
 effect(() => save(SETTINGS_KEY, settings.value));
 effect(() => save(BESTS_KEY, bests.value));
