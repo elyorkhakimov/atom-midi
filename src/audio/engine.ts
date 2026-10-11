@@ -70,6 +70,7 @@ export class AudioEngine {
   private liveMask = 0;
   private liveSynth = false;
   private liveKey = '';
+  private kitRequest = '';
 
   constructor() {
     // No sampleRate: use the device's native rate (avoids resampling latency on Android).
@@ -154,13 +155,20 @@ export class AudioEngine {
   // Kits
   // -------------------------------------------------------------------------
   async loadKit(id: string): Promise<void> {
+    this.kitRequest = id;
     let p = this.kitCache.get(id);
+    const cached = Boolean(p);
     if (!p) {
       p = this.fetchKit(id);
       this.kitCache.set(id, p);
       p.catch(() => this.kitCache.delete(id));
     }
-    this.kit = await p;
+    const kit = await p;
+    // The native engine plays its own current kit: coming back to a cached one must select it
+    // there again, or it keeps the last kit (and plays nothing for this kit's instrument names).
+    if (this.native && cached) await this.native.loadKit(id);
+    // Quick kit changes: the last one asked for wins, whatever order the loads finish in.
+    if (this.kitRequest === id) this.kit = kit;
   }
 
   private async fetchKit(id: string): Promise<LoadedKit> {
