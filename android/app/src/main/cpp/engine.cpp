@@ -394,16 +394,8 @@ void Engine::release(Voice &v) {
 }
 
 void Engine::startVoice(const Sample *s, float gain, int bus, int chokeGroup, bool filter, float cutoff, int64_t frame, int id) {
-  if (bus == kKitBus) {
-    int live = 0;
-    Voice *oldest = nullptr;
-    for (auto &v : voices_) {
-      if (!v.active || v.releasing || v.bus != kKitBus) continue;
-      live++;
-      if (!oldest || v.startFrame < oldest->startFrame) oldest = &v;
-    }
-    if (live >= kMaxKitVoices && oldest) release(*oldest);
-  }
+  // The kit voice limit is applied when a voice starts (onAudioReady), so sounds scheduled
+  // ahead never push each other out before they've played.
   Voice *slot = nullptr;
   for (auto &v : voices_) {
     if (!v.active) {
@@ -492,6 +484,11 @@ oboe::DataCallbackResult Engine::onAudioReady(oboe::AudioStream *stream, void *a
     const int burst = stream->getFramesPerBurst();
     if (stream->getBufferSizeInFrames() < burst * 4) stream->setBufferSizeInFrames(stream->getBufferSizeInFrames() + burst);
   }
+  // Render in the stream's own frame count, the one getTimestamp() positions (frameFor) use.
+  // After an underrun AAudio skips that count ahead; counting only our own frames would fall
+  // behind by every glitch, and scheduled sounds would start later and later, then never.
+  const int64_t written = stream->getFramesWritten();
+  if (written > framesRendered_) framesRendered_ = written;
 
   if (queueMutex_.try_lock()) {
     pending_.swap(queue_);
@@ -518,6 +515,17 @@ oboe::DataCallbackResult Engine::onAudioReady(oboe::AudioStream *stream, void *a
         if (v.chokeGroup >= 0) {
           for (auto &o : voices_)
             if (&o != &v && o.active && o.started && o.chokeGroup == v.chokeGroup && o.id != v.id) release(o);
+        }
+        if (v.bus == kKitBus) {
+          // Past the limit: the oldest sounding kit voice fades out (MAX_VOICES in engine.ts).
+          int live = 0;
+          Voice *oldest = nullptr;
+          for (auto &o : voices_) {
+            if (&o == &v || !o.active || !o.started || o.releasing || o.bus != kKitBus) continue;
+            live++;
+            if (!oldest || o.startFrame < oldest->startFrame) oldest = &o;
+          }
+          if (live >= kMaxKitVoices && oldest) release(*oldest);
         }
       }
       float *mix = tlMix[v.bus];

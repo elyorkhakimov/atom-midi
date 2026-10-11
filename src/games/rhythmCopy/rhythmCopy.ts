@@ -20,6 +20,9 @@ const MIN_BPM = 60;
 const MAX_BPM = 160;
 /** Hits this far outside the playing window are ignored rather than scored as extras. */
 const WINDOW_MARGIN_MS = 150;
+const LOOKAHEAD_MS = 25;
+/** Sounds go to the engine only this far ahead, so a long demo never runs into the voice limit. */
+const SCHEDULE_AHEAD_S = 0.15;
 
 /** The app plays a pattern, the player copies it; scored by timing per spec §9. */
 export class RhythmCopyGame implements Game {
@@ -33,8 +36,11 @@ export class RhythmCopyGame implements Game {
   private phase: Phase = { name: 'choose' };
   private hits: Note[] = [];
   private readonly timers = new Timers();
-  /** Scheduled metronome clicks of the current run, so the toggle can add or cancel the rest. */
-  private clicks: { click: Click; handle: { cancel(): void } | null }[] = [];
+  /** Sounds of the current run not yet handed to the engine, by time. */
+  private queue: { at: number; run(): void }[] = [];
+  private scheduler: ReturnType<typeof setInterval> | null = null;
+  /** Clicks already handed to the engine, so the toggle or Stop can cancel them. */
+  private clickHandles: { at: number; handle: { cancel(): void } }[] = [];
   /** On-screen metronome toggle, set by draw(). */
   private clickToggle: Rect | null = null;
 
@@ -51,14 +57,16 @@ export class RhythmCopyGame implements Game {
     this.patterns = [...PATTERNS, ...custom.map(({ pattern }) => pattern)];
     // Every pad hit plays its kit sound: let the Android app play it straight from the MIDI thread.
     ctx.audio.setLivePads(0xffff);
+    this.scheduler = setInterval(() => this.schedule(), LOOKAHEAD_MS);
     this.showMetronome();
     this.toChoose();
   }
 
   stop(): void {
     this.ctx.audio.setLivePads(0);
+    if (this.scheduler) clearInterval(this.scheduler);
     this.timers.clear();
-    this.cancelClicks();
+    this.cancelSounds();
     this.ctx.audio.stopAll();
   }
 
@@ -78,27 +86,37 @@ export class RhythmCopyGame implements Game {
     this.ctx.updateSettings({ rhythmMetronome: on });
     this.ctx.audio.playCue('tick');
     this.showMetronome();
-    // Applies to the rest of a run in progress.
-    const soon = this.ctx.audio.clock.now + 0.02;
-    for (const c of this.clicks) {
-      if (c.click.countIn || c.click.at < soon) continue;
-      if (on && !c.handle) c.handle = this.ctx.audio.click(c.click.accent, c.click.at);
-      else if (!on && c.handle) {
-        c.handle.cancel();
-        c.handle = null;
-      }
+    // Clicks still queued follow the setting when they're scheduled; cancel the few already sent.
+    if (!on) {
+      const soon = this.ctx.audio.clock.now + 0.02;
+      for (const c of this.clickHandles) if (c.at > soon) c.handle.cancel();
+      this.clickHandles = this.clickHandles.filter((c) => c.at <= soon);
     }
   }
 
-  private scheduleClicks(clicks: readonly Click[]): void {
-    this.cancelClicks();
-    const on = this.metronomeOn;
-    this.clicks = clicks.map((click) => ({ click, handle: on || click.countIn ? this.ctx.audio.click(click.accent, click.at) : null }));
+  private queueClicks(clicks: readonly Click[]): void {
+    for (const click of clicks) {
+      this.queue.push({
+        at: click.at,
+        run: () => {
+          if (!click.countIn && !this.metronomeOn) return;
+          this.clickHandles.push({ at: click.at, handle: this.ctx.audio.click(click.accent, click.at) });
+        },
+      });
+    }
   }
 
-  private cancelClicks(): void {
-    for (const c of this.clicks) c.handle?.cancel();
-    this.clicks = [];
+  /** Hands the engine whatever plays within SCHEDULE_AHEAD_S (like Metronome). */
+  private schedule(): void {
+    const horizon = this.ctx.audio.clock.now + SCHEDULE_AHEAD_S;
+    while (this.queue.length && this.queue[0]!.at < horizon) this.queue.shift()!.run();
+    if (this.clickHandles.length > 64) this.clickHandles = this.clickHandles.slice(-16);
+  }
+
+  private cancelSounds(): void {
+    this.queue = [];
+    for (const c of this.clickHandles) c.handle.cancel();
+    this.clickHandles = [];
   }
 
   // -------------------------------------------------------------------------
@@ -118,7 +136,7 @@ export class RhythmCopyGame implements Game {
   // -------------------------------------------------------------------------
   private toChoose(): void {
     this.timers.clear();
-    this.cancelClicks();
+    this.cancelSounds();
     this.phase = { name: 'choose' };
     this.showPatternPads();
   }
@@ -150,13 +168,16 @@ export class RhythmCopyGame implements Game {
     const snap = audio.clock.snapshot();
     const toPerf = (at: number) => snap.performanceTime + (at - snap.contextTime) * 1000;
 
-    this.scheduleClicks(tl.clicks);
+    this.cancelSounds();
+    this.queueClicks(tl.clicks);
     for (const n of tl.demoNotes) {
-      audio.playPad(n.pad, 100, n.at);
+      this.queue.push({ at: n.at, run: () => audio.playPad(n.pad, 100, n.at) });
       // Secondary visual cue: flash the pad the demo is playing.
       this.timers.at(toPerf(n.at), () => controller.setPad(n.pad, { r: 127, g: 127, b: 127 }));
       this.timers.at(toPerf(n.at) + 110, () => controller.setPad(n.pad, dim(this.kitLed(n.pad), 0.5)));
     }
+    this.queue.sort((a, b) => a.at - b.at);
+    this.schedule();
     this.showPatternPads();
     const expected = tl.expected.map((n) => ({ pad: n.pad, t: toPerf(n.at) }));
     this.phase = { name: 'running', tl, expected, playStartT: toPerf(tl.playStart), endT: toPerf(tl.end) };
