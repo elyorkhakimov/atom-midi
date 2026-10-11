@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
 import { GAMES } from '../games/registry';
 import { PLAYERS } from '../games/players';
-import { PAD_COUNT, padAt } from '../midi/atomMap';
+import { PAD_COLS, PAD_COUNT, padAt } from '../midi/atomMap';
 import { useHold, useInput } from './hooks';
 import { go } from './router';
 import { getRuntime, settings } from './runtime';
 
-/** Game i is on top-row pad i (left to right), lit in its colour. */
-const GAME_PADS = GAMES.map((_, i) => padAt(3, i));
+/** Games fill the pads from the top-left, left to right, then the next row down; lit in their colour. */
+const GAME_PADS = GAMES.map((_, i) => padAt(3 - Math.floor(i / PAD_COLS), i % PAD_COLS));
+const ROW_NAMES = ['top', 'second', 'third', 'bottom'];
 const SETTINGS_INDEX = GAMES.length;
 const HOLD_MS = 1000;
 
@@ -98,7 +99,7 @@ export function MainMenu() {
             <span class="emoji">{g.emoji}</span>
             <span class="name">{g.title}</span>
             {!kid && <span class="blurb">{g.blurb}</span>}
-            {!kid && <span class="players">{g.players} · pad {i + 1} on top row</span>}
+            {!kid && <span class="players">{g.players} · pad {(i % PAD_COLS) + 1} on {ROW_NAMES[Math.floor(i / PAD_COLS)]} row</span>}
           </button>
         ))}
         <button

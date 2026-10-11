@@ -84,6 +84,7 @@ export class FreeJamGame implements Game {
   }
 
   stop(): void {
+    this.ctx.audio.setLivePads(0);
     this.metronome.stop();
     this.ctx.audio.stopAll();
     this.ctx.controller.setButtonLight('fullLevel', false);
@@ -107,7 +108,17 @@ export class FreeJamGame implements Game {
     return isRoot(pad, patch.scale) ? this.page.root! : this.page.note!;
   }
 
+  /** Android app: every page plays natively on the hit, the kit or the page's synth patch. */
+  private syncLivePads(): void {
+    const patch = this.patch();
+    this.ctx.audio.setLivePads(0xffff, {
+      fixedVelocity: this.fullLevel ? this.ctx.settings().fullLevelVelocity : 0,
+      synth: patch ? { patch, transpose: this.ctx.settings().jamTranspose } : undefined,
+    });
+  }
+
   private lightPads(): void {
+    this.syncLivePads();
     this.ctx.controller.setPads(Array.from({ length: PAD_COUNT }, (_, pad) => this.padColor(pad)));
     this.ctx.controller.setButtonLight('click', this.metronome.running);
     this.ctx.controller.setButtonLight('fullLevel', this.fullLevel);
@@ -233,6 +244,12 @@ export class FreeJamGame implements Game {
       this.lastHit[e.pad] = { t: performance.now(), velocity };
       return;
     }
+    this.onControl(e);
+    // Page, Full level or its velocity knob may have changed.
+    this.syncLivePads();
+  }
+
+  private onControl(e: InputEvent): void {
     if (e.type === 'padUp') {
       if (this.page.id !== 'drums') this.ctx.audio.synth.noteOff(e.pad);
       return;

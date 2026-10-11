@@ -1,3 +1,5 @@
+import { nativeBridge } from '../native/bridge';
+import { nativeMidiAccess } from '../native/nativeMidi';
 import { isAtomPortName, type MidiBytes } from './atomMap';
 
 export function webMidiSupported(): boolean {
@@ -6,6 +8,8 @@ export function webMidiSupported(): boolean {
 
 /** No SysEx: the ATOM's native mode only needs channel messages. */
 export async function requestMidi(): Promise<MIDIAccess> {
+  // Android app: the ATOM is opened natively (Android WebView has no Web MIDI).
+  if (nativeBridge) return nativeMidiAccess(nativeBridge);
   // Checked first: Chrome hides requestMIDIAccess entirely on insecure origins
   // (e.g. http://192.168.x.x), which otherwise looks like "browser unsupported".
   if (!window.isSecureContext) {

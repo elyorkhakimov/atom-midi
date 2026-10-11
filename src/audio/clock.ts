@@ -17,7 +17,18 @@ export function perfToAudio(perfTime: number, snap: OutputSnapshot): number {
   return snap.contextTime + (perfTime - snap.performanceTime) / 1000;
 }
 
-export class AudioClock {
+/** Audio time source: Web Audio in the browser, the native engine in the Android app. */
+export interface Clock {
+  /** Current audio time, s. */
+  readonly now: number;
+  /** Output latency estimate in ms, for display. */
+  readonly latencyMs: number;
+  snapshot(): OutputSnapshot;
+  audioToPerf(audioTime: number): number;
+  perfToAudio(perfTime: number): number;
+}
+
+export class AudioClock implements Clock {
   constructor(private readonly ctx: AudioContext) {}
 
   get now(): number {
@@ -37,6 +48,37 @@ export class AudioClock {
     }
     // Fallback: currentTime is about to be rendered and is heard after the output latency.
     return { contextTime: this.ctx.currentTime, performanceTime: performance.now() + this.latencyMs };
+  }
+
+  audioToPerf(audioTime: number): number {
+    return audioToPerf(audioTime, this.snapshot());
+  }
+
+  perfToAudio(perfTime: number): number {
+    return perfToAudio(perfTime, this.snapshot());
+  }
+}
+
+/**
+ * Clock for the Android app, where sound comes from the native engine. Audio time is
+ * performance.now() in seconds at the moment a sample is rendered; it's heard after
+ * the native output latency. The WebView's AudioContext isn't involved, so its large
+ * and jumpy latency never reaches scheduling or scoring.
+ */
+export class NativeAudioClock implements Clock {
+  constructor(private readonly native: { readonly latencyMs: number }) {}
+
+  get now(): number {
+    return performance.now() / 1000;
+  }
+
+  get latencyMs(): number {
+    return this.native.latencyMs;
+  }
+
+  snapshot(): OutputSnapshot {
+    const perf = performance.now();
+    return { contextTime: perf / 1000, performanceTime: perf + this.latencyMs };
   }
 
   audioToPerf(audioTime: number): number {

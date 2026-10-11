@@ -6,7 +6,7 @@ import type { ControllerEvent } from '../midi/padController';
  * Pads: rows from the bottom  Z X C V / A S D F / Q W E R / 1 2 3 4.
  * Velocity 100; hold Shift for 127, Alt for 35.
  * Buttons: Space = Play, Esc = Stop, Enter = Select, arrows = nav, M = Click,
- * H = Shift (hold), L = Full Level.
+ * H = Shift (hold), L = Full Level, B = Record, N = Nudge.
  * Knobs: [ ] = knob 1, ; ' = knob 2, , . = knob 3, / \ = knob 4.
  */
 const PAD_KEYS = ['z', 'x', 'c', 'v', 'a', 's', 'd', 'f', 'q', 'w', 'e', 'r', '1', '2', '3', '4'];
@@ -21,6 +21,8 @@ const BUTTON_KEYS: Record<string, ButtonId> = {
   m: 'click',
   h: 'shift',
   l: 'fullLevel',
+  b: 'record',
+  n: 'nudge',
 };
 const KNOB_KEYS: Record<string, [number, number]> = {
   '[': [0, -1], ']': [0, 1], ';': [1, -1], "'": [1, 1], ',': [2, -1], '.': [2, 1], '/': [3, -1], '\\': [3, 1],

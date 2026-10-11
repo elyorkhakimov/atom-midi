@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { KITS } from '../audio/kit';
+import { nativeBridge } from '../native/bridge';
 import { CURVE_GAMMA, type CurveName } from '../input/velocity';
 import type { Settings } from '../storage/settings';
 import { useInput } from './hooks';
@@ -168,9 +169,45 @@ export function SettingsScreen() {
         <button class="back" onClick={() => go({ name: 'menu' })}>
           ← Menu
         </button>
-        <a class="muted small" href={`${import.meta.env.BASE_URL}tools/atom-test/`}>ATOM test tools</a>
-        <a class="muted small" href={`${import.meta.env.BASE_URL}tools/latency-test/`}>Audio latency test</a>
+        {nativeBridge ? (
+          <NativeAudioInfo />
+        ) : (
+          <>
+            <a class="muted small" href={`${import.meta.env.BASE_URL}tools/atom-test/`}>ATOM test tools</a>
+            <a class="muted small" href={`${import.meta.env.BASE_URL}tools/latency-test/`}>Audio latency test</a>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Android app: the native output stream, to check now and then that the fast path (MMAP,
+ * exclusive, one burst) is still in use, plus the last few stream opens.
+ */
+function NativeAudioInfo() {
+  const [status, setStatus] = useState(() => nativeBridge?.status());
+  useEffect(() => {
+    const id = setInterval(() => setStatus(nativeBridge?.status()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const a = status?.audio;
+  const lines = !a?.running
+    ? ['Native audio: not running']
+    : [
+        `Native audio: ${a.mmap ? 'MMAP' : 'legacy'}, ${a.exclusive ? 'exclusive' : 'shared'} · buffer ${a.bufferFrames} (${a.framesPerBurst}/burst) · ~${Math.round(a.latencyMs ?? 0)} ms output · ${a.xruns ?? 0} glitches`,
+        ...(a.opens ?? []),
+      ];
+  if (status?.app) lines.push(`App: ${status.app}`);
+  return (
+    <span class="muted small" style={{ display: 'block', overflowWrap: 'anywhere' }}>
+      {lines.map((line, i) => (
+        <>
+          {i > 0 && <br />}
+          {line}
+        </>
+      ))}
+    </span>
   );
 }

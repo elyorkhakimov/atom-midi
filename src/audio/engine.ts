@@ -1,6 +1,7 @@
-import { AudioClock } from './clock';
+import { NativeBus, nativeBridge } from '../native/bridge';
+import { AudioClock, NativeAudioClock, type Clock } from './clock';
 import { makeCues, type CueName } from './cues';
-import { SynthVoices } from './synth';
+import { SynthVoices, padFrequency, patchToFloats, type SynthOut, type SynthPatch } from './synth';
 import { RoundRobin, selectLayers, velocityGain, type KitJson } from './kit';
 
 interface LoadedKit {
@@ -46,12 +47,16 @@ function softClipCurve(points = 4097): Float32Array<ArrayBuffer> {
  * Web Audio engine: sample kits with velocity layers, crossfades, round-robin,
  * choke groups and voice stealing; synthesized cues; separate kit/metronome/cue buses.
  * All playback takes an optional audio-clock time; omitted = as soon as possible.
+ *
+ * In the Android app (`nativeBridge`), everything plays on the native engine
+ * (android/app/src/main/cpp, same behaviour). The page then uses an OfflineAudioContext only
+ * to build and decode buffers, so it never opens a (slower, competing) audio output.
  */
 export class AudioEngine {
-  readonly ctx: AudioContext;
-  readonly clock: AudioClock;
+  readonly ctx: BaseAudioContext;
+  readonly clock: Clock;
   kit: LoadedKit | null = null;
-  readonly synth: SynthVoices;
+  readonly synth: SynthOut;
 
   private readonly master: GainNode;
   private readonly kitBus: GainNode;
@@ -61,11 +66,22 @@ export class AudioEngine {
   private readonly roundRobin = new RoundRobin();
   private voices: Voice[] = [];
   private readonly kitCache = new Map<string, Promise<LoadedKit>>();
+  private readonly native = nativeBridge;
+  private liveMask = 0;
+  private liveSynth = false;
+  private liveKey = '';
 
   constructor() {
     // No sampleRate: use the device's native rate (avoids resampling latency on Android).
-    this.ctx = new AudioContext({ latencyHint: 'interactive' });
-    this.clock = new AudioClock(this.ctx);
+    const native = this.native;
+    if (native) {
+      this.ctx = new OfflineAudioContext(1, 1, 48000);
+      this.clock = new NativeAudioClock(native);
+    } else {
+      const ctx = new AudioContext({ latencyHint: 'interactive' });
+      this.ctx = ctx;
+      this.clock = new AudioClock(ctx);
+    }
     this.master = this.ctx.createGain();
     // The shaper's curve covers ±1, so scale the mix into it; the curve scales back.
     const range = this.ctx.createGain();
@@ -77,8 +93,9 @@ export class AudioEngine {
     this.kitBus = this.bus(KIT_BUS_GAIN);
     this.metronomeBus = this.bus(0.7);
     this.cueBus = this.bus(0.8);
-    this.synth = new SynthVoices(this.ctx, this.bus(KIT_BUS_GAIN));
+    this.synth = native ? new NativeSynth(native, (pad) => this.liveSynth && (this.liveMask & (1 << pad)) !== 0) : new SynthVoices(this.ctx, this.bus(KIT_BUS_GAIN));
     this.cues = makeCues(this.ctx);
+    if (this.native) for (const [name, buffer] of Object.entries(this.cues)) this.native.setCue(name, buffer);
   }
 
   private bus(gain: number): GainNode {
@@ -89,20 +106,48 @@ export class AudioEngine {
   }
 
   get running(): boolean {
+    if (this.native) return this.native.status().audio.running;
     return this.ctx.state === 'running';
   }
 
   /** Must run inside a user gesture the first time. */
   async resume(): Promise<void> {
-    if (this.ctx.state !== 'running') await this.ctx.resume();
+    if (this.native) return;
+    if (this.ctx.state !== 'running') await (this.ctx as AudioContext).resume();
   }
 
   setMasterVolume(v: number): void {
     this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.01);
+    this.native?.api.setMasterGain(v);
   }
 
   setMetronomeVolume(v: number): void {
     this.metronomeBus.gain.setTargetAtTime(v, this.ctx.currentTime, 0.01);
+    this.native?.api.setBusGain(NativeBus.metronome, v);
+  }
+
+  /**
+   * Android app: pads in `mask` sound natively the moment they're hit, before the page sees
+   * the event: the kit, or the synth when `synth` is given. playPad() without a time and
+   * synth.noteOn/noteOff then skip those pads. `fixedVelocity` > 0 replaces the hit
+   * velocity (Free jam's Full level). No effect in the browser.
+   */
+  setLivePads(mask: number, opts: { fixedVelocity?: number; synth?: { patch: SynthPatch; transpose: number } } = {}): void {
+    const fixed = opts.fixedVelocity ?? 0;
+    const synth = opts.synth;
+    const patchCsv = synth ? patchToFloats(synth.patch).join(',') : '';
+    const freqsCsv = synth ? Array.from({ length: 16 }, (_, pad) => padFrequency(pad, synth.patch, synth.transpose)).join(',') : '';
+    const key = `${mask}|${fixed}|${patchCsv}|${freqsCsv}`;
+    if (key === this.liveKey) return;
+    this.liveKey = key;
+    this.liveMask = mask;
+    this.liveSynth = Boolean(synth);
+    this.native?.api.setLive(mask, fixed, Boolean(synth), patchCsv, freqsCsv);
+  }
+
+  /** Native time at which a sound scheduled for audio time `when` should be heard; 0 = now. */
+  private heardNs(when: number | undefined): number {
+    return when === undefined || !this.native ? 0 : this.native.perfToNs(this.clock.audioToPerf(when));
   }
 
   // -------------------------------------------------------------------------
@@ -123,6 +168,10 @@ export class AudioEngine {
     const res = await fetch(`${base}kit.json`);
     if (!res.ok) throw new Error(`Kit ${id}: ${res.status}`);
     const json = (await res.json()) as KitJson;
+    if (this.native) {
+      await this.native.loadKit(id);
+      return { json, buffers: {} };
+    }
     const decode = async (file: string) => {
       const r = await fetch(base + file);
       if (!r.ok) throw new Error(`Kit ${id}/${file}: ${r.status}`);
@@ -148,6 +197,8 @@ export class AudioEngine {
   }
 
   playPad(pad: number, velocity: number, when?: number): void {
+    // Already played natively from the MIDI thread.
+    if (when === undefined && this.native && !this.liveSynth && this.liveMask & (1 << pad)) return;
     const id = this.instrumentForPad(pad);
     if (id) this.playInstrument(id, velocity, when);
   }
@@ -156,6 +207,10 @@ export class AudioEngine {
     const kit = this.kit;
     const def = kit?.json.instruments[id];
     const layerBuffers = kit?.buffers[id];
+    if (this.native) {
+      if (def) this.native.api.playInstrument(id, velocity, this.heardNs(when));
+      return;
+    }
     if (!def || !layerBuffers) return;
     const t = Math.max(when ?? 0, this.ctx.currentTime);
 
@@ -211,6 +266,7 @@ export class AudioEngine {
   /** Stops all kit and synth voices (e.g. leaving a game). */
   stopAll(): void {
     for (const v of [...this.voices]) this.release(v, this.ctx.currentTime);
+    this.native?.api.stopAll();
     this.synth.stopAll();
   }
 
@@ -232,7 +288,10 @@ export class AudioEngine {
           if (!(name in this.cues) || !file) return;
           try {
             const r = await fetch(base + file);
-            if (r.ok) this.cues[name as CueName] = await this.ctx.decodeAudioData(await r.arrayBuffer());
+            if (!r.ok) return;
+            const buffer = await this.ctx.decodeAudioData(await r.arrayBuffer());
+            this.cues[name as CueName] = buffer;
+            this.native?.setCue(name, buffer);
           } catch {
             /* keep the synthesized cue */
           }
@@ -245,11 +304,20 @@ export class AudioEngine {
 
   /** Returns a handle that can cancel the cue before it plays. */
   playCue(name: CueName, when?: number, gain = 1): { cancel(): void } {
-    return this.playBuffer(this.cues[name], this.cueBus, when, gain);
+    return this.playNamed(name, this.cueBus, NativeBus.cue, when, gain);
   }
 
   click(accent: boolean, when?: number): { cancel(): void } {
-    return this.playBuffer(this.cues[accent ? 'clickAccent' : 'click'], this.metronomeBus, when);
+    return this.playNamed(accent ? 'clickAccent' : 'click', this.metronomeBus, NativeBus.metronome, when);
+  }
+
+  private playNamed(name: CueName, bus: AudioNode, nativeBus: number, when?: number, gain = 1): { cancel(): void } {
+    const native = this.native;
+    if (native) {
+      const id = native.api.playCue(name, nativeBus, gain, this.heardNs(when));
+      return { cancel: () => native.api.stopVoice(id) };
+    }
+    return this.playBuffer(this.cues[name], bus, when, gain);
   }
 
   private playBuffer(buffer: AudioBuffer, bus: AudioNode, when?: number, gain = 1): { cancel(): void } {
@@ -275,4 +343,27 @@ export class AudioEngine {
       },
     };
   }
+}
+
+type NativeBridgeT = NonNullable<typeof nativeBridge>;
+
+/** Synth notes on the native engine; pads it already plays live are skipped. */
+class NativeSynth implements SynthOut {
+  constructor(
+    private readonly native: NativeBridgeT,
+    private readonly isLive: (pad: number) => boolean,
+  ) {}
+
+  noteOn(pad: number, velocity: number, patch: SynthPatch, transpose = 0): void {
+    if (this.isLive(pad)) return;
+    this.native.api.synthNoteOn(pad, velocity, patchToFloats(patch).join(','), padFrequency(pad, patch, transpose), 0);
+  }
+
+  noteOff(pad: number): void {
+    if (this.isLive(pad)) return;
+    this.native.api.synthNoteOff(pad);
+  }
+
+  /** AudioEngine.stopAll() already stops native synth voices. */
+  stopAll(): void {}
 }

@@ -2,6 +2,8 @@ import { KITS } from '../../audio/kit';
 import type { InputEvent } from '../../input/events';
 import { PAD_COUNT } from '../../midi/atomMap';
 import type { PadLed } from '../../midi/ledFrame';
+import { loadBeats } from '../../storage/beats';
+import { beatToPattern } from '../beatMaker/beat';
 import { THEME, clear, fitSize, ledCss, roundRect, text } from '../draw';
 import { Timers, inRect, type Game, type GameContext, type Rect } from '../framework';
 import { dim } from '../players';
@@ -23,6 +25,10 @@ const WINDOW_MARGIN_MS = 150;
 export class RhythmCopyGame implements Game {
   private ctx!: GameContext;
   private index = 0;
+  /** Built-in patterns, then the custom beats saved in Beat maker. */
+  private patterns: readonly Pattern[] = PATTERNS;
+  /** Tempo each custom beat was recorded at. */
+  private readonly beatBpm = new Map<string, number>();
   private bpm = 120;
   private phase: Phase = { name: 'choose' };
   private hits: Note[] = [];
@@ -33,16 +39,24 @@ export class RhythmCopyGame implements Game {
   private clickToggle: Rect | null = null;
 
   private get pattern(): Pattern {
-    return PATTERNS[this.index]!;
+    return this.patterns[this.index]!;
   }
 
   start(ctx: GameContext): void {
     this.ctx = ctx;
+    const custom = loadBeats()
+      .map((b) => ({ beat: b, pattern: beatToPattern(b) }))
+      .filter(({ pattern }) => pattern.notes.length);
+    for (const { beat, pattern } of custom) this.beatBpm.set(pattern.id, beat.bpm);
+    this.patterns = [...PATTERNS, ...custom.map(({ pattern }) => pattern)];
+    // Every pad hit plays its kit sound: let the Android app play it straight from the MIDI thread.
+    ctx.audio.setLivePads(0xffff);
     this.showMetronome();
     this.toChoose();
   }
 
   stop(): void {
+    this.ctx.audio.setLivePads(0);
     this.timers.clear();
     this.cancelClicks();
     this.ctx.audio.stopAll();
@@ -65,7 +79,7 @@ export class RhythmCopyGame implements Game {
     this.ctx.audio.playCue('tick');
     this.showMetronome();
     // Applies to the rest of a run in progress.
-    const soon = this.ctx.audio.ctx.currentTime + 0.02;
+    const soon = this.ctx.audio.clock.now + 0.02;
     for (const c of this.clicks) {
       if (c.click.countIn || c.click.at < soon) continue;
       if (on && !c.handle) c.handle = this.ctx.audio.click(c.click.accent, c.click.at);
@@ -121,7 +135,9 @@ export class RhythmCopyGame implements Game {
   }
 
   private select(delta: number): void {
-    this.index = (this.index + delta + PATTERNS.length) % PATTERNS.length;
+    this.index = (this.index + delta + this.patterns.length) % this.patterns.length;
+    const bpm = this.beatBpm.get(this.pattern.id);
+    if (bpm !== undefined) this.bpm = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(bpm)));
     this.ctx.audio.playCue('tick');
     this.showPatternPads();
   }
@@ -130,7 +146,7 @@ export class RhythmCopyGame implements Game {
     const { audio, controller } = this.ctx;
     this.timers.clear();
     this.hits = [];
-    const tl = buildTimeline(this.pattern, this.bpm, audio.ctx.currentTime + 0.4);
+    const tl = buildTimeline(this.pattern, this.bpm, audio.clock.now + 0.4);
     const snap = audio.clock.snapshot();
     const toPerf = (at: number) => snap.performanceTime + (at - snap.contextTime) * 1000;
 
@@ -225,7 +241,8 @@ export class RhythmCopyGame implements Game {
     const gridH = h * 0.45;
 
     if (p.name === 'choose') {
-      text(g, `${this.index + 1} / ${PATTERNS.length}   ·   ${this.bpm} BPM   ·   ${KITS.find((k) => k.id === this.ctx.settings().kitId)?.name ?? ''}`, w / 2, unit * 1.9, unit * 0.4, THEME.muted, 'center', 600);
+      const where = this.index < PATTERNS.length ? `${this.index + 1} / ${PATTERNS.length}` : `My beats ${this.index - PATTERNS.length + 1} / ${this.patterns.length - PATTERNS.length}`;
+      text(g, `${where}   ·   ${this.bpm} BPM   ·   ${KITS.find((k) => k.id === this.ctx.settings().kitId)?.name ?? ''}`, w / 2, unit * 1.9, unit * 0.4, THEME.muted, 'center', 600);
       this.drawGrid(g, w, gridTop + unit * 0.5, gridH, null, null);
       const hint = kid ? '◀ ▶ pick · ▶ Play' : 'Knob 1 or ▲▼ pattern · knob 2 tempo · knob 3 kit · Click = metronome · ▶ Play · ■ menu';
       text(g, hint, w / 2, h - unit, fitSize(g, hint, w * 0.88, unit * 0.38, 500), THEME.muted, 'center', 500);

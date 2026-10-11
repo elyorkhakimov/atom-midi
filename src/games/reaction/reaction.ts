@@ -131,7 +131,7 @@ export class ReactionGame implements Game {
     if (this.lightsOnly) return this.startLightsRound();
     const { audio } = this.ctx;
     this.fill({ r: 0, g: 0, b: 0 });
-    const goAudio = audio.ctx.currentTime + randomDelayMs() / 1000;
+    const goAudio = audio.clock.now + randomDelayMs() / 1000;
     const classic = this.mode === 'classic';
     const zone = classic ? 0 : pickZone(this.zones, this.history);
     if (!classic) this.history = [...this.history.slice(-4), zone];

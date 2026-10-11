@@ -12,7 +12,8 @@ import {
   type ButtonId,
   type Rgb,
 } from './atomMap';
-import { LedFrameWriter, emptyFrame, type PadLed } from './ledFrame';
+import { nativeBridge } from '../native/bridge';
+import { LedFrameWriter, emptyFrame, padLedMessages, type PadLed } from './ledFrame';
 import type { ControllerEvent, ControllerStatus, HitLight, PadController } from './padController';
 import { splitMidiMessages } from './split';
 import { listInputs, listOutputs, sendAll } from './webMidi';
@@ -44,6 +45,10 @@ export class AtomDriver implements PadController {
   private setupHeld = false;
   private readonly buttonLights = new Map<ButtonId, boolean | Rgb>();
   private brightness = 1;
+  /** Android app: the MIDI thread sends hit lights itself, from this table (see syncNativeLeds). */
+  private readonly nativeLeds = nativeBridge;
+  private nativeLedSpec = '';
+  private nativeLedSyncQueued = false;
   private readonly eventListeners = new Set<(e: ControllerEvent) => void>();
   private readonly statusListeners = new Set<(s: ControllerStatus) => void>();
 
@@ -78,6 +83,7 @@ export class AtomDriver implements PadController {
   setPad(pad: number, led: PadLed): void {
     this.base[pad] = { ...led };
     if (!this.held.has(pad)) this.writer.setPad(pad, led);
+    this.syncNativeLeds();
   }
 
   setPads(leds: readonly PadLed[]): void {
@@ -86,10 +92,12 @@ export class AtomDriver implements PadController {
 
   setHitLight(pad: number, light: HitLight): void {
     this.hit[pad] = light;
+    this.syncNativeLeds();
   }
 
   setAllHitLights(light: HitLight): void {
     this.hit.fill(light);
+    this.syncNativeLeds();
   }
 
   setButtonLight(id: ButtonId, light: boolean | Rgb): void {
@@ -102,6 +110,7 @@ export class AtomDriver implements PadController {
     this.brightness = k;
     this.writer.brightness = k;
     this.writer.setFrame(this.currentFrame());
+    this.syncNativeLeds();
   }
 
   reset(): void {
@@ -109,6 +118,30 @@ export class AtomDriver implements PadController {
     this.hit.fill('auto');
     this.writer.setFrame(this.currentFrame());
     for (const b of BUTTONS) this.setButtonLight(b.id, false);
+    this.syncNativeLeds();
+  }
+
+  /**
+   * Android app: hands the native MIDI thread the exact messages for each pad's hit light
+   * (on press) and base light (on release), so hit feedback doesn't wait for the page.
+   * Coalesced per microtask; only sent when something changed.
+   */
+  private syncNativeLeds(): void {
+    if (!this.nativeLeds || this.nativeLedSyncQueued) return;
+    this.nativeLedSyncQueued = true;
+    queueMicrotask(() => {
+      this.nativeLedSyncQueued = false;
+      const bytes = (msgs: readonly (readonly number[])[]) => msgs.flat().join(',');
+      const spec = this.base
+        .map((base, pad) => {
+          const hit = this.hitLed(pad);
+          return `${hit ? bytes(padLedMessages(pad, hit, this.brightness)) : ''};${bytes(padLedMessages(pad, base, this.brightness))}`;
+        })
+        .join('|');
+      if (spec === this.nativeLedSpec) return;
+      this.nativeLedSpec = spec;
+      this.nativeLeds?.api.setHitLeds(spec);
+    });
   }
 
   private currentFrame(): PadLed[] {
@@ -198,7 +231,8 @@ export class AtomDriver implements PadController {
         this.held.add(msg.pad);
         // LED feedback first, before anything else runs.
         const led = this.hitLed(msg.pad);
-        if (led) {
+        if (led && this.nativeLeds) this.writer.assumeSent(msg.pad, led);
+        else if (led) {
           this.writer.setPad(msg.pad, led);
           this.writer.flushNow();
         }
@@ -208,7 +242,8 @@ export class AtomDriver implements PadController {
       case 'padUp':
         // Only real releases: the Setup button flushes note-offs for all 16 pads.
         if (!this.held.delete(msg.pad)) return;
-        this.writer.setPad(msg.pad, this.base[msg.pad]!);
+        if (this.nativeLeds) this.writer.assumeSent(msg.pad, this.base[msg.pad]!);
+        else this.writer.setPad(msg.pad, this.base[msg.pad]!);
         this.emit({ type: 'padUp', pad: msg.pad, t });
         return;
       case 'padPressure':

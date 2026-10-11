@@ -141,6 +141,18 @@ export function padFrequency(pad: number, patch: SynthPatch, transpose = 0): num
   return c0 * 2 ** patch.octave * 2 ** ((padSemitone(pad, patch.scale) + transpose) / 12);
 }
 
+/** What plays synth notes: SynthVoices (Web Audio) or the native engine in the Android app. */
+export interface SynthOut {
+  noteOn(pad: number, velocity: number, patch: SynthPatch, transpose?: number): void;
+  noteOff(pad: number): void;
+  stopAll(): void;
+}
+
+/** The patch as the native engine takes it: [wave, detune, attack, decay, sustain, release, cutoff, resonance, filterEnv, level]. */
+export function patchToFloats(p: SynthPatch): number[] {
+  return [WAVES.indexOf(p.wave), p.detune, p.attack, p.decay, p.sustain, p.release, p.cutoff, p.resonance, p.filterEnv, p.level];
+}
+
 /** Square and saw are much louder than sine at the same amplitude. */
 const WAVE_GAIN: Record<Wave, number> = { sine: 1, triangle: 1, square: 0.45, sawtooth: 0.55 };
 const MAX_SYNTH_VOICES = 16;
@@ -156,11 +168,11 @@ interface SynthVoice {
 }
 
 /** Polyphonic voices: one per held pad, oldest stolen past the limit. */
-export class SynthVoices {
+export class SynthVoices implements SynthOut {
   private voices: SynthVoice[] = [];
 
   constructor(
-    private readonly ctx: AudioContext,
+    private readonly ctx: BaseAudioContext,
     private readonly out: AudioNode,
   ) {}
 

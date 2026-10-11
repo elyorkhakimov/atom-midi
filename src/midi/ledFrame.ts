@@ -65,6 +65,12 @@ export function diffPadFrame(
   return out;
 }
 
+/** All four messages that show `led` on `pad` at `brightness`, whatever the device showed before. */
+export function padLedMessages(pad: number, led: PadLed, brightness = 1): MidiBytes[] {
+  const q = quantize(scaleRgb(led, brightness));
+  return padColorMessages(pad, q, stateOf(q));
+}
+
 /** Scales a colour by a 0..1 brightness cap. */
 export function scaleRgb<T extends Rgb>(c: T, k: number): T {
   return { ...c, r: c.r * k, g: c.g * k, b: c.b * k };
@@ -104,6 +110,12 @@ export class LedFrameWriter {
   invalidate(flush = true): void {
     this.sent = null;
     if (flush) this.requestFlush();
+  }
+
+  /** Records that `color` already shows on `pad` (sent elsewhere, e.g. by the native app). */
+  assumeSent(pad: number, color: PadLed): void {
+    this.desired[pad] = { ...color };
+    if (this.sent) this.sent[pad] = quantize(scaleRgb(color, this.brightness));
   }
 
   flushNow(): void {

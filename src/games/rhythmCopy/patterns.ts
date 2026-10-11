@@ -5,7 +5,7 @@
 export interface Pattern {
   id: string;
   name: string;
-  bars: 1 | 2;
+  bars: number;
   notes: readonly (readonly [step: number, pad: number])[];
 }
 

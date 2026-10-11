@@ -38,7 +38,7 @@ export function LatencyCalibrationScreen({ back }: { back: Route['name'] }) {
     clearTimers();
     taps.current = [];
     const beat = 60 / BPM;
-    const start = audio.ctx.currentTime + 0.5;
+    const start = audio.clock.now + 0.5;
     const snap = audio.clock.snapshot();
     const toPerf = (at: number) => snap.performanceTime + (at - snap.contextTime) * 1000;
     const countIn: number[] = [];

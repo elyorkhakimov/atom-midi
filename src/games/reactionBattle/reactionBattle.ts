@@ -75,7 +75,7 @@ export class ReactionBattleGame implements Game {
     this.round++;
     this.hits = [];
     this.showAreas(0.25);
-    const goAudio = audio.ctx.currentTime + randomDelayMs() / 1000;
+    const goAudio = audio.clock.now + randomDelayMs() / 1000;
     const cue = audio.playCue('go', goAudio);
     const goT = audio.clock.audioToPerf(goAudio);
     this.phase = { name: 'waiting', goT, cancelGo: () => cue.cancel() };

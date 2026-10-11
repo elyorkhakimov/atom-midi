@@ -28,6 +28,8 @@ export interface Settings {
   /** Free Jam synth pages: key change in semitones, and a filter multiplier (1 = as designed). */
   jamTranspose: number;
   jamTone: number;
+  /** Beat maker: metronome while looping (the count-in always clicks). */
+  beatClick: boolean;
   setupPromptSeen: boolean;
 }
 
@@ -55,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fullLevelVelocity: 110,
   jamTranspose: 0,
   jamTone: 1,
+  beatClick: true,
   setupPromptSeen: false,
 };
 

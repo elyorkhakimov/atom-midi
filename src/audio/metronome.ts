@@ -27,7 +27,7 @@ export class Metronome {
   start(): void {
     if (this.timer) return;
     this.beat = 0;
-    this.nextBeatTime = this.audio.ctx.currentTime + 0.05;
+    this.nextBeatTime = this.audio.clock.now + 0.05;
     this.timer = setInterval(() => this.tick(), LOOKAHEAD_MS);
     this.tick();
   }
@@ -38,7 +38,7 @@ export class Metronome {
   }
 
   private tick(): void {
-    const horizon = this.audio.ctx.currentTime + SCHEDULE_AHEAD_S;
+    const horizon = this.audio.clock.now + SCHEDULE_AHEAD_S;
     while (this.nextBeatTime < horizon) {
       const accent = this.beat % this.beatsPerBar === 0;
       this.audio.click(accent, this.nextBeatTime);

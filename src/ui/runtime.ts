@@ -6,6 +6,7 @@ import { attachKeyboard } from '../input/keyboard';
 import { AtomDriver } from '../midi/atomDriver';
 import type { ControllerStatus, PadController } from '../midi/padController';
 import { requestMidi } from '../midi/webMidi';
+import { nativeBridge } from '../native/bridge';
 import { BestTracker } from '../storage/bests';
 import { load, save } from '../storage/persist';
 import { BESTS_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, type Bests, type Settings } from '../storage/settings';
@@ -93,6 +94,8 @@ export async function startRuntime(): Promise<Runtime> {
     audio.setMasterVolume(s.masterVolume);
     audio.setMetronomeVolume(s.metronomeVolume);
     controller.setBrightness(s.ledBrightness);
+    // Live pads in the Android app sound before InputBus runs, so it needs the same shaping.
+    nativeBridge?.api.setShaping(s.velocityThreshold, s.curveGamma, s.doubleTriggerMs);
   });
 
   runtime = { audio, controller, input, bests: tracker };
