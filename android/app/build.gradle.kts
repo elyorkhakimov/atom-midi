@@ -23,8 +23,8 @@ android {
         // AMidi (NDK MIDI) needs API 29.
         minSdk = 29
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.8.3"
+        versionCode = 12
+        versionName = "0.9"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=c++_shared") } }
     }

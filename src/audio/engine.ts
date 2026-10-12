@@ -3,11 +3,13 @@ import { AudioClock, NativeAudioClock, type Clock } from './clock';
 import { makeCues, type CueName } from './cues';
 import { SynthVoices, padFrequency, patchToFloats, type SynthOut, type SynthPatch } from './synth';
 import { RoundRobin, selectLayers, velocityGain, type KitJson } from './kit';
+import { decodeKitBuffers, fetchKitJson, type KitBuffers } from './kitFiles';
 
 interface LoadedKit {
+  id: string;
   json: KitJson;
-  /** buffers[instrumentId][layer][variant] */
-  buffers: Record<string, AudioBuffer[][]>;
+  /** Empty in the Android app (the native engine holds the samples). */
+  buffers: KitBuffers;
 }
 
 interface Voice {
@@ -20,10 +22,10 @@ interface Voice {
 export const MAX_VOICES = 32;
 const STEAL_FADE_S = 0.008;
 /** Kit samples are normalized to -1 dBFS; leave room for a full groove plus the click. */
-const KIT_BUS_GAIN = 0.55;
+export const KIT_BUS_GAIN = 0.55;
 /** The soft clipper is linear up to this level and handles input up to ±CLIP_INPUT_RANGE. */
 const CLIP_KNEE = 0.6;
-const CLIP_INPUT_RANGE = 2;
+export const CLIP_INPUT_RANGE = 2;
 
 /**
  * Transparent below the knee, then saturates smoothly towards ±1 instead of
@@ -37,7 +39,7 @@ export function softClip(x: number): number {
   return Math.sign(x) * (CLIP_KNEE + head * Math.tanh((a - CLIP_KNEE) / head));
 }
 
-function softClipCurve(points = 4097): Float32Array<ArrayBuffer> {
+export function softClipCurve(points = 4097): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(points);
   for (let i = 0; i < points; i++) curve[i] = softClip(((i / (points - 1)) * 2 - 1) * CLIP_INPUT_RANGE);
   return curve;
@@ -66,6 +68,8 @@ export class AudioEngine {
   private readonly roundRobin = new RoundRobin();
   private voices: Voice[] = [];
   private readonly kitCache = new Map<string, Promise<LoadedKit>>();
+  /** Kits whose load finished, current or not (Beat maker notes keep the kit they were played with). */
+  private readonly loadedKits = new Map<string, LoadedKit>();
   private readonly native = nativeBridge;
   private liveMask = 0;
   private liveSynth = false;
@@ -156,14 +160,8 @@ export class AudioEngine {
   // -------------------------------------------------------------------------
   async loadKit(id: string): Promise<void> {
     this.kitRequest = id;
-    let p = this.kitCache.get(id);
-    const cached = Boolean(p);
-    if (!p) {
-      p = this.fetchKit(id);
-      this.kitCache.set(id, p);
-      p.catch(() => this.kitCache.delete(id));
-    }
-    const kit = await p;
+    const cached = this.kitCache.has(id);
+    const kit = await this.cachedKit(id, true);
     // The native engine plays its own current kit: coming back to a cached one must select it
     // there again, or it keeps the last kit (and plays nothing for this kit's instrument names).
     if (this.native && cached) await this.native.loadKit(id);
@@ -171,52 +169,66 @@ export class AudioEngine {
     if (this.kitRequest === id) this.kit = kit;
   }
 
-  private async fetchKit(id: string): Promise<LoadedKit> {
-    const base = `${import.meta.env.BASE_URL}kits/${id}/`;
-    const res = await fetch(`${base}kit.json`);
-    if (!res.ok) throw new Error(`Kit ${id}: ${res.status}`);
-    const json = (await res.json()) as KitJson;
-    if (this.native) {
-      await this.native.loadKit(id);
-      return { json, buffers: {} };
+  /** Loads a kit so playPad() can use it by id, without making it the current kit. */
+  async preloadKit(id: string): Promise<void> {
+    await this.cachedKit(id, false);
+  }
+
+  private cachedKit(id: string, select: boolean): Promise<LoadedKit> {
+    let p = this.kitCache.get(id);
+    if (!p) {
+      p = this.fetchKit(id, select).then((k) => {
+        this.loadedKits.set(id, k);
+        return k;
+      });
+      this.kitCache.set(id, p);
+      p.catch(() => this.kitCache.delete(id));
     }
-    const decode = async (file: string) => {
-      const r = await fetch(base + file);
-      if (!r.ok) throw new Error(`Kit ${id}/${file}: ${r.status}`);
-      return this.ctx.decodeAudioData(await r.arrayBuffer());
-    };
-    const buffers: Record<string, AudioBuffer[][]> = {};
-    await Promise.all(
-      Object.entries(json.instruments).map(async ([inst, def]) => {
-        buffers[inst] = await Promise.all(def.layers.map((l) => Promise.all(l.samples.map(decode))));
-      }),
-    );
-    return { json, buffers };
+    return p;
   }
 
-  instrumentForPad(pad: number): string | undefined {
-    return this.kit?.json.pads[pad];
+  private async fetchKit(id: string, select: boolean): Promise<LoadedKit> {
+    const json = await fetchKitJson(id);
+    if (this.native) {
+      await (select ? this.native.loadKit(id) : this.native.preloadKit(id));
+      return { id, json, buffers: {} };
+    }
+    return { id, json, buffers: await decodeKitBuffers(this.ctx, id, json) };
   }
 
-  padColor(pad: number): { r: number; g: number; b: number } | null {
-    const id = this.instrumentForPad(pad);
-    const c = id ? this.kit?.json.instruments[id]?.color : undefined;
+  /** The current kit, or a loaded one by id (null while it is still loading). */
+  private kitFor(kitId?: string): LoadedKit | null {
+    if (kitId === undefined || kitId === this.kit?.id) return this.kit;
+    return this.loadedKits.get(kitId) ?? null;
+  }
+
+  instrumentForPad(pad: number, kitId?: string): string | undefined {
+    return this.kitFor(kitId)?.json.pads[pad];
+  }
+
+  padColor(pad: number, kitId?: string): { r: number; g: number; b: number } | null {
+    const kit = this.kitFor(kitId);
+    const id = kit?.json.pads[pad];
+    const c = id ? kit?.json.instruments[id]?.color : undefined;
     return c ? { r: c[0], g: c[1], b: c[2] } : null;
   }
 
-  playPad(pad: number, velocity: number, when?: number): void {
+  /** `kitId`: play the pad's sound from that (loaded) kit instead of the current one. */
+  playPad(pad: number, velocity: number, when?: number, kitId?: string): void {
     // Already played natively from the MIDI thread.
-    if (when === undefined && this.native && !this.liveSynth && this.liveMask & (1 << pad)) return;
-    const id = this.instrumentForPad(pad);
-    if (id) this.playInstrument(id, velocity, when);
+    if (when === undefined && kitId === undefined && this.native && !this.liveSynth && this.liveMask & (1 << pad)) return;
+    const kit = this.kitFor(kitId);
+    const id = kit?.json.pads[pad];
+    if (kit && id) this.playInstrument(id, velocity, when, kit);
   }
 
-  playInstrument(id: string, velocity: number, when?: number): void {
-    const kit = this.kit;
+  playInstrument(id: string, velocity: number, when?: number, kit = this.kit): void {
     const def = kit?.json.instruments[id];
     const layerBuffers = kit?.buffers[id];
     if (this.native) {
-      if (def) this.native.api.playInstrument(id, velocity, this.heardNs(when));
+      if (!def) return;
+      if (kit === this.kit) this.native.api.playInstrument(id, velocity, this.heardNs(when));
+      else this.native.api.playKitInstrument(kit!.id, id, velocity, this.heardNs(when));
       return;
     }
     if (!def || !layerBuffers) return;

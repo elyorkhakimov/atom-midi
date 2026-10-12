@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beatToPattern, hitPosition, isCustomBeat, nextBeatName, quantize, resizeLoop, type CustomBeat } from './beat';
+import { GRIDS, adjacentLine, beatToPattern, hitPosition, isCustomBeat, nextBeatName, quantize, resizeLoop, sameCell, type CustomBeat } from './beat';
 
 const note = (pos: number, pad = 0, velocity = 100) => ({ pos, pad, velocity });
 
@@ -19,6 +19,29 @@ describe('beat maker', () => {
     expect(quantize([note(0.3)], 3, 4)[0]!.pos).toBeCloseTo(1 / 3, 9); // triplets
   });
 
+  it('keeps notes from different kits apart, and offers 1/32 triplets', () => {
+    const q = quantize([{ ...note(1), kit: 'acoustic' }, { ...note(1.01), kit: 'electro' }], 4, 4);
+    expect(q.map((n) => n.kit)).toEqual(['acoustic', 'electro']);
+    expect(GRIDS.map((g) => g.div)).toContain(12);
+    expect(quantize([note(0.09)], 12, 4)[0]!.pos).toBeCloseTo(1 / 12, 9);
+  });
+
+  it('moves a note to the next grid line either way, round the loop', () => {
+    expect(adjacentLine(1.03, 1, 4, 4, false)).toBeCloseTo(1.25, 9);
+    expect(adjacentLine(1.03, -1, 4, 4, false)).toBeCloseTo(1, 9);
+    expect(adjacentLine(1, 1, 4, 4, false)).toBeCloseTo(1.25, 9);
+    expect(adjacentLine(1.03, -1, 4, 4, true)).toBeCloseTo(0.75, 9); // shown on 1 under Nudge
+    expect(adjacentLine(0, -1, 4, 4, true)).toBeCloseTo(3.75, 9);
+    expect(adjacentLine(3.9, 1, 4, 4, false)).toBe(0);
+  });
+
+  it('finds the notes Nudge shows as one dot', () => {
+    expect(sameCell(note(1.02), note(0.98), 4, 4)).toBe(true);
+    expect(sameCell(note(3.98), note(0.01), 4, 4)).toBe(true); // wraps to beat 1
+    expect(sameCell(note(1), note(1, 1), 4, 4)).toBe(false);
+    expect(sameCell({ ...note(1), kit: 'a' }, { ...note(1), kit: 'b' }, 4, 4)).toBe(false);
+  });
+
   it('a longer loop repeats the groove, a shorter one cuts it', () => {
     expect(resizeLoop([note(0), note(3.5)], 4, 8).map((n) => n.pos)).toEqual([0, 3.5, 4, 7.5]);
     expect(resizeLoop([note(1), note(5)], 8, 4).map((n) => n.pos)).toEqual([1]);
@@ -31,6 +54,8 @@ describe('beat maker', () => {
     expect(p.notes).toEqual([[0, 0], [6, 1], [0, 2]]);
     expect(isCustomBeat(beat)).toBe(true);
     expect(isCustomBeat({ ...beat, notes: [{ pos: 0, pad: 16, velocity: 1 }] })).toBe(false);
+    expect(isCustomBeat({ ...beat, notes: [{ ...note(0), kit: 'electro' }] })).toBe(true);
+    expect(isCustomBeat({ ...beat, notes: [{ ...note(0), kit: 3 }] })).toBe(false);
   });
 
   it('names new beats with the lowest free number', () => {

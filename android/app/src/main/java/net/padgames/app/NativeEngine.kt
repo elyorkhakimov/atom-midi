@@ -31,6 +31,8 @@ object NativeEngine {
     @JvmStatic external fun kitSelect(kit: Long)
 
     @JvmStatic external fun playInstrument(name: String, velocity: Int, heardNs: Long): Int
+    /** An instrument of any loaded kit (by kit id), not just the current one. */
+    @JvmStatic external fun playKitInstrument(kitId: String, name: String, velocity: Int, heardNs: Long): Int
     @JvmStatic external fun setCue(name: String, pcm: FloatArray, sampleRate: Int)
     @JvmStatic external fun playCue(name: String, bus: Int, gain: Float, heardNs: Long): Int
     @JvmStatic external fun stopVoice(id: Int)

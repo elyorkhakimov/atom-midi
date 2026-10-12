@@ -181,6 +181,13 @@ JNIEXPORT jint JNICALL FN(playInstrument)(JNIEnv *env, jclass, jstring name, jin
   return e.playInstrument(kit, kit->instrumentIndex(str(env, name)), velocity, heardNs);
 }
 
+JNIEXPORT jint JNICALL FN(playKitInstrument)(JNIEnv *env, jclass, jstring kitId, jstring name, jint velocity, jlong heardNs) {
+  Engine &e = Engine::get();
+  const Kit *kit = e.findKit(str(env, kitId));
+  if (!kit) return 0;
+  return e.playInstrument(kit, kit->instrumentIndex(str(env, name)), velocity, heardNs);
+}
+
 JNIEXPORT void JNICALL FN(setCue)(JNIEnv *env, jclass, jstring name, jfloatArray pcm, jint rate) {
   std::vector<float> data(env->GetArrayLength(pcm));
   env->GetFloatArrayRegion(pcm, 0, static_cast<jsize>(data.size()), data.data());

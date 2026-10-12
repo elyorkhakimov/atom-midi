@@ -17,13 +17,22 @@ interface PadNativeApi {
   synthNoteOff(pad: number): void;
   setShaping(threshold: number, gamma: number, doubleTriggerMs: number): void;
   loadKit(id: string): void;
+  /** Loads a kit without selecting it (answers with kitLoaded too). */
+  preloadKit(id: string): void;
   playInstrument(name: string, velocity: number, heardNs: number): number;
+  /** An instrument of a loaded kit other than the current one. */
+  playKitInstrument(kitId: string, name: string, velocity: number, heardNs: number): number;
   setCue(name: string, base64: string, sampleRate: number): void;
   playCue(name: string, bus: number, gain: number, heardNs: number): number;
   stopVoice(id: number): void;
   stopAll(): void;
   setMasterGain(gain: number): void;
   setBusGain(bus: number, gain: number): void;
+  /**
+   * Saves a WAV (base64) to Downloads, as is (`format` 'wav') or encoded to AAC ('m4a').
+   * Returns the saved file's name, or "error: …".
+   */
+  saveAudio(name: string, format: string, wavBase64: string): string;
 }
 
 export interface NativeStatus {
@@ -124,11 +133,19 @@ class NativeBridge {
   }
 
   loadKit(id: string): Promise<void> {
+    return this.whenKitLoaded(id, () => this.api.loadKit(id));
+  }
+
+  preloadKit(id: string): Promise<void> {
+    return this.whenKitLoaded(id, () => this.api.preloadKit(id));
+  }
+
+  private whenKitLoaded(id: string, request: () => void): Promise<void> {
     return new Promise((resolve, reject) => {
       const list = this.kitWaiters.get(id) ?? [];
       list.push((ok) => (ok ? resolve() : reject(new Error(`Native kit ${id} failed to load`))));
       this.kitWaiters.set(id, list);
-      this.api.loadKit(id);
+      request();
     });
   }
 

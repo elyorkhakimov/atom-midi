@@ -106,12 +106,16 @@ class PadBridge(private val context: Context, private val webView: WebView) {
         NativeEngine.setShaping(threshold, gamma.toFloat(), doubleTriggerMs)
 
     /** Loads (once) and selects a kit from assets/kits/<id>/; answers with kitLoaded(id, ok). */
-    @JavascriptInterface
-    fun loadKit(id: String) {
+    @JavascriptInterface fun loadKit(id: String) = loadKit(id, select = true)
+
+    /** Loads a kit for playKitInstrument without selecting it; answers with kitLoaded(id, ok). */
+    @JavascriptInterface fun preloadKit(id: String) = loadKit(id, select = false)
+
+    private fun loadKit(id: String, select: Boolean) {
         loader.execute {
             val ok = try {
                 val kit = kits[id] ?: buildKit(id).also { kits[id] = it }
-                NativeEngine.kitSelect(kit)
+                if (select) NativeEngine.kitSelect(kit)
                 true
             } catch (e: Exception) {
                 Log.e(MainActivity.TAG, "kit $id", e)
@@ -152,6 +156,19 @@ class PadBridge(private val context: Context, private val webView: WebView) {
     @JavascriptInterface
     fun playInstrument(name: String, velocity: Int, heardNs: Double): Int =
         NativeEngine.playInstrument(name, velocity, heardNs.toLong())
+
+    @JavascriptInterface
+    fun playKitInstrument(kitId: String, name: String, velocity: Int, heardNs: Double): Int =
+        NativeEngine.playKitInstrument(kitId, name, velocity, heardNs.toLong())
+
+    /** Saves an exported beat to Downloads: the WAV as is, or encoded to AAC (format "m4a"). */
+    @JavascriptInterface
+    fun saveAudio(name: String, format: String, wavBase64: String): String = try {
+        AudioExport.save(context, name, format, Base64.decode(wavBase64, Base64.DEFAULT))
+    } catch (e: Exception) {
+        Log.e(MainActivity.TAG, "saveAudio $name.$format", e)
+        "error: ${e.message}"
+    }
 
     /** Mono float32 PCM, little-endian, base64. */
     @JavascriptInterface

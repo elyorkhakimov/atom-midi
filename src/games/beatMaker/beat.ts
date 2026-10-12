@@ -5,6 +5,8 @@ export interface BeatNote {
   pos: number;
   pad: number;
   velocity: number;
+  /** Kit it was played with; older beats leave it out and use the beat's kitId. */
+  kit?: string;
 }
 
 /** A beat saved under "My beats" (Beat maker) and offered in Rhythm copy. */
@@ -29,6 +31,7 @@ export const GRIDS = [
   { div: 4, label: '1/16' },
   { div: 6, label: '1/16 triplet' },
   { div: 8, label: '1/32' },
+  { div: 12, label: '1/32 triplet' },
 ] as const;
 export const DEFAULT_GRID = 3; // 1/16
 
@@ -56,7 +59,7 @@ export function quantize<T extends BeatNote>(notes: readonly T[], div: number, l
   const byCell = new Map<string, T>();
   for (const n of notes) {
     const pos = wrap(Math.round(n.pos * div) / div, loopBeats);
-    const key = `${n.pad}:${Math.round(pos * div)}`;
+    const key = `${n.pad}:${n.kit ?? ''}:${Math.round(pos * div)}`;
     const prev = byCell.get(key);
     if (!prev || n.velocity > prev.velocity) byCell.set(key, { ...n, pos });
   }
@@ -65,6 +68,22 @@ export function quantize<T extends BeatNote>(notes: readonly T[], div: number, l
 
 export function sortNotes<T extends BeatNote>(notes: T[]): T[] {
   return notes.sort((a, b) => a.pos - b.pos || a.pad - b.pad);
+}
+
+/** Same sound in the same grid cell: Nudge plays (and shows) them as one note. */
+export function sameCell(a: BeatNote, b: BeatNote, div: number, loopBeats: number): boolean {
+  return a.pad === b.pad && a.kit === b.kit && wrap(Math.round(a.pos * div), loopBeats * div) === wrap(Math.round(b.pos * div), loopBeats * div);
+}
+
+/**
+ * The grid line next to `pos` in direction `dir` (±1), round the loop. `fromLine` = `pos` is
+ * already shown on a line (Nudge on), so the move is one whole step from it.
+ */
+export function adjacentLine(pos: number, dir: number, div: number, loopBeats: number, fromLine: boolean): number {
+  const x = pos * div;
+  const eps = 1e-6;
+  const line = fromLine ? Math.round(x) + dir : dir > 0 ? Math.ceil(x + eps) : Math.floor(x - eps);
+  return wrap(line / div, loopBeats);
 }
 
 /** Repeats or cuts a loop when its length changes, so a 1-bar groove fills 2 bars. */
@@ -108,6 +127,6 @@ export function isCustomBeat(b: unknown): b is CustomBeat {
     Number.isInteger(x.bars) &&
     x.bars > 0 &&
     Array.isArray(x.notes) &&
-    x.notes.every((n) => Number.isFinite(n?.pos) && Number.isInteger(n?.pad) && n.pad >= 0 && n.pad < 16 && Number.isFinite(n?.velocity))
+    x.notes.every((n) => Number.isFinite(n?.pos) && Number.isInteger(n?.pad) && n.pad >= 0 && n.pad < 16 && Number.isFinite(n?.velocity) && (n.kit === undefined || typeof n.kit === 'string'))
   );
 }

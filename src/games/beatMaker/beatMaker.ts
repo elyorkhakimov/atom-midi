@@ -1,4 +1,5 @@
 import { KITS } from '../../audio/kit';
+import { renderKitNotes, saveRender } from '../../audio/render';
 import type { InputEvent } from '../../input/events';
 import { KnobDetents } from '../../input/knob';
 import { PAD_COUNT } from '../../midi/atomMap';
@@ -11,10 +12,12 @@ import {
   BEATS_PER_BAR,
   DEFAULT_GRID,
   GRIDS,
+  adjacentLine,
   hitPosition,
   nextBeatName,
   quantize,
   resizeLoop,
+  sameCell,
   sortNotes,
   wrap,
   type BeatNote,
@@ -31,8 +34,15 @@ const CONFIRM_MS = 3000;
 const TICKS_VALUE = 2;
 const TICKS_LIST = 4;
 const FONT = { tab: 20, label: 14, value: 20, status: 26, button: 17, hint: 15 };
+/** Export length choices, in passes of the loop. */
+const EXPORT_PASSES = [1, 2, 4, 8];
+/** Finger travel (px) before a tap on a dot becomes a drag. */
+const DRAG_START_PX = 8;
+/** Smallest touch target around a dot (px). */
+const DOT_HIT_PX = 20;
 
 interface RecNote extends BeatNote {
+  kit: string;
   /** Record pass it came from, for Undo. */
   take: number;
   /** Not played back before this audio time: the player just played it. */
@@ -59,10 +69,13 @@ interface Button {
  * under My beats (also playable in Rhythm copy). The loop keeps going while recording, so
  * each pass layers on top of the last one.
  *
+ * Each note keeps the kit it was played with, so changing kits mid-beat layers sounds.
+ *
  * Record = count-in, then record (again = stop recording) · Play = loop on/off · Nudge = snap
  * on/off · Shift+Nudge = grid · Select = save (Shift = save as new) · Shift+Record = undo
- * the last take · Shift+Stop = clear · Click = metronome · ◀▶ = Record / My beats.
- * Knobs: tempo, length, grid, kit.
+ * the last take · Shift+Stop = clear · Click = metronome · Full Level = new hits at one
+ * velocity · ◀▶ = Record / My beats. Knobs: tempo, length, grid, kit.
+ * Tap a dot to pick it: drag it (or ◀▶) to another grid line, Shift+Stop deletes it.
  */
 export class BeatMakerGame implements Game {
   private ctx!: GameContext;
@@ -91,12 +104,21 @@ export class BeatMakerGame implements Game {
   private tiles: { rect: Rect; turn(n: number): void }[] = [];
   private buttons: Button[] = [];
   private rowRects: Rect[] = [];
+  /** Full Level: hits from now on play (and record) at one velocity; recorded ones keep theirs. */
+  private fullLevel = false;
+  /** The dot picked on the timeline, and a drag of it in progress. */
+  private selected: RecNote | null = null;
+  private drag: { startX: number; moved: boolean } | null = null;
+  private dots: { x: number; y: number; r: number; note: RecNote }[] = [];
+  private timelineRect: Rect | null = null;
+  private exportPasses = 4;
+  private exporting = false;
 
   start(ctx: GameContext): void {
     this.ctx = ctx;
     this.beats = loadBeats();
-    // Hits sound straight from the MIDI thread in the Android app.
-    ctx.audio.setLivePads(0xffff);
+    this.updateLive();
+    this.preloadKits(this.beats.flatMap((b) => this.beatNotes(b)));
     this.timer = setInterval(() => this.tick(), LOOKAHEAD_MS);
     this.lightPads();
     this.lightButtons();
@@ -107,6 +129,22 @@ export class BeatMakerGame implements Game {
     this.timers.clear();
     this.ctx.audio.setLivePads(0);
     this.ctx.audio.stopAll();
+    this.ctx.controller.setButtonLight('fullLevel', false);
+  }
+
+  /** Hits sound straight from the MIDI thread in the Android app (at the Full Level velocity while it's on). */
+  private updateLive(): void {
+    this.ctx.audio.setLivePads(0xffff, { fixedVelocity: this.fullLevel ? this.ctx.settings().fullLevelVelocity : 0 });
+  }
+
+  /** Notes play from the kit they were recorded with, so those kits must be loaded. */
+  private preloadKits(notes: readonly { kit: string }[]): void {
+    for (const id of new Set(notes.map((n) => n.kit))) void this.ctx.audio.preloadKit(id).catch(() => {});
+  }
+
+  /** A saved beat's notes, each with its kit (older beats have one kit for all). */
+  private beatNotes(beat: CustomBeat): (BeatNote & { kit: string })[] {
+    return beat.notes.map((n) => ({ ...n, kit: n.kit ?? beat.kitId }));
   }
 
   // -------------------------------------------------------------------------
@@ -130,10 +168,10 @@ export class BeatMakerGame implements Game {
   }
 
   /** The loop the transport plays: the draft, or the saved beat picked in My beats. */
-  private source(): { notes: readonly (BeatNote & { quietUntil?: number })[]; bpm: number; loopBeats: number } {
+  private source(): { notes: readonly (BeatNote & { kit: string; quietUntil?: number })[]; bpm: number; loopBeats: number } {
     if (this.view === 'list') {
       const b = this.selectedBeat;
-      return { notes: b?.notes ?? [], bpm: b?.bpm ?? this.bpm, loopBeats: (b?.bars ?? 1) * BEATS_PER_BAR };
+      return { notes: b ? this.beatNotes(b) : [], bpm: b?.bpm ?? this.bpm, loopBeats: (b?.bars ?? 1) * BEATS_PER_BAR };
     }
     return { notes: this.heard(), bpm: this.bpm, loopBeats: this.loopBeats };
   }
@@ -169,7 +207,7 @@ export class BeatMakerGame implements Game {
         if (x < from || x >= to || x < 0) continue;
         const at = t.origin + x * beatDur;
         if (n.quietUntil !== undefined && at < n.quietUntil) continue;
-        audio.playPad(n.pad, n.velocity, at);
+        audio.playPad(n.pad, n.velocity, at, n.kit);
         // Secondary visual cue: flash the pad as it plays.
         const heardAt = audio.clock.audioToPerf(at);
         this.timers.at(heardAt, () => controller.setPad(n.pad, { r: 127, g: 127, b: 127 }));
@@ -236,7 +274,7 @@ export class BeatMakerGame implements Game {
     const pos = hitPosition(heard, tr.origin, beatDur, this.loopBeats);
     if (pos === null) return;
     // Its next play-back is the next pass, not the grid line it may snap to right after the hit.
-    this.notes.push({ pos, pad, velocity, take: this.take, quietUntil: heard + (this.loopBeats * beatDur) / 2 });
+    this.notes.push({ pos, pad, velocity, kit: this.ctx.settings().kitId, take: this.take, quietUntil: heard + (this.loopBeats * beatDur) / 2 });
     sortNotes(this.notes);
     this.dirty = true;
   }
@@ -265,6 +303,7 @@ export class BeatMakerGame implements Game {
     this.bars = next;
     if (this.notes.length) {
       this.notes = resizeLoop(this.notes, before, this.loopBeats);
+      this.selected = null;
       this.dirty = true;
     }
     this.say(`Length: ${next} bar${next > 1 ? 's' : ''}${this.notes.length && next * BEATS_PER_BAR > before ? ' · groove repeated' : ''}`);
@@ -283,10 +322,65 @@ export class BeatMakerGame implements Game {
     this.say(`Kit: ${KITS.find((k) => k.id === id)?.name ?? id}`);
   }
 
+  // --- Single notes: tap a dot to pick it ---------------------------------
+  private select(note: RecNote | null): void {
+    this.selected = note;
+    if (note) this.audition(note);
+  }
+
+  private audition(note: RecNote): void {
+    this.ctx.audio.playPad(note.pad, note.velocity, undefined, note.kit);
+  }
+
+  /** The picked note, plus (under Nudge) any others that snap onto the same dot. */
+  private selectedGroup(): RecNote[] {
+    const s = this.selected;
+    if (!s) return [];
+    return this.snap ? this.notes.filter((n) => sameCell(n, s, this.grid.div, this.loopBeats)) : [s];
+  }
+
+  /** Puts the picked note on grid line `pos` (beats). */
+  private placeSelected(pos: number): void {
+    const s = this.selected;
+    if (!s) return;
+    const shown = this.snap ? wrap(Math.round(s.pos * this.grid.div) / this.grid.div, this.loopBeats) : s.pos;
+    if (Math.abs(shown - pos) < 1e-9) return;
+    for (const n of this.selectedGroup()) {
+      n.pos = pos;
+      delete n.quietUntil;
+    }
+    sortNotes(this.notes);
+    this.dirty = true;
+    this.audition(s);
+  }
+
+  /** One grid line left (-1) or right (+1). */
+  private moveSelected(dir: number): void {
+    const s = this.selected;
+    if (s) this.placeSelected(adjacentLine(s.pos, dir, this.grid.div, this.loopBeats, this.snap));
+  }
+
+  private deleteNote(): void {
+    const group = this.selectedGroup();
+    if (!group.length) return;
+    this.notes = this.notes.filter((n) => !group.includes(n));
+    this.selected = null;
+    this.dirty = true;
+    this.say('Note deleted');
+  }
+
+  private toggleFullLevel(): void {
+    this.fullLevel = !this.fullLevel;
+    this.updateLive();
+    this.lightButtons();
+    this.say(this.fullLevel ? `Full level on · new hits play at ${this.ctx.settings().fullLevelVelocity}` : 'Full level off · new hits follow how hard you play');
+  }
+
   private undo(): void {
     if (!this.notes.length) return this.say('Nothing to undo');
     const last = Math.max(...this.notes.map((n) => n.take));
     this.notes = this.notes.filter((n) => n.take !== last);
+    if (this.selected && !this.notes.includes(this.selected)) this.selected = null;
     this.dirty = true;
     this.say('Last take removed');
   }
@@ -294,12 +388,13 @@ export class BeatMakerGame implements Game {
   private clearAll(): void {
     if (!this.notes.length) return;
     this.notes = [];
+    this.selected = null;
     this.dirty = true;
     this.say('Cleared');
   }
 
   private save(asNew: boolean): void {
-    const notes = this.heard().map(({ pos, pad, velocity }) => ({ pos: Math.round(pos * 1e4) / 1e4, pad, velocity }));
+    const notes = this.heard().map(({ pos, pad, velocity, kit }) => ({ pos: Math.round(pos * 1e4) / 1e4, pad, velocity, kit }));
     if (!notes.length) return this.say('Record something first');
     const existing = !asNew && this.editingId ? this.beats.findIndex((b) => b.id === this.editingId) : -1;
     const beat: CustomBeat = {
@@ -325,7 +420,8 @@ export class BeatMakerGame implements Game {
     this.stopTransport();
     this.bpm = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(beat.bpm)));
     this.bars = beat.bars;
-    this.notes = sortNotes(beat.notes.map((n) => ({ ...n, take: 0 })));
+    this.notes = sortNotes(this.beatNotes(beat).map((n) => ({ ...n, take: 0 })));
+    this.preloadKits(this.notes);
     this.take = 0;
     this.snap = false;
     this.editingId = beat.id;
@@ -333,6 +429,37 @@ export class BeatMakerGame implements Game {
     this.selectKit(beat.kitId);
     this.setView('record');
     this.say(`Editing “${beat.name}” · Select saves over it, Shift+Select saves a copy`);
+  }
+
+  private changeExportPasses(): void {
+    const i = EXPORT_PASSES.indexOf(this.exportPasses);
+    this.exportPasses = EXPORT_PASSES[(i + 1) % EXPORT_PASSES.length]!;
+    this.say(`Export: the loop ${this.exportPasses}×`);
+  }
+
+  /** Renders the picked saved beat (exportPasses times round) to a WAV or AAC file. */
+  private async exportBeat(format: 'wav' | 'aac'): Promise<void> {
+    const beat = this.selectedBeat;
+    if (!beat) return this.say('No saved beats yet');
+    if (this.exporting) return;
+    this.exporting = true;
+    this.say(`Exporting “${beat.name}”…`, 60_000);
+    try {
+      // Let the message draw before the (blocking) encode in the Android app.
+      await new Promise((r) => setTimeout(r, 50));
+      const beatDur = 60 / beat.bpm;
+      const loopBeats = beat.bars * BEATS_PER_BAR;
+      const notes = [];
+      for (let pass = 0; pass < this.exportPasses; pass++) {
+        for (const n of this.beatNotes(beat)) notes.push({ ...n, at: (pass * loopBeats + n.pos) * beatDur });
+      }
+      const audio = await renderKitNotes(notes, this.exportPasses * loopBeats * beatDur);
+      this.say(await saveRender(audio, beat.name, format), 6000);
+    } catch (e) {
+      this.say(`Export failed: ${e instanceof Error ? e.message : String(e)}`, 6000);
+    } finally {
+      this.exporting = false;
+    }
   }
 
   private deleteSelected(): void {
@@ -370,6 +497,7 @@ export class BeatMakerGame implements Game {
     if (view === this.view) return;
     this.stopTransport();
     this.view = view;
+    this.selected = null;
     if (view === 'list') this.beats = loadBeats();
     this.lightButtons();
   }
@@ -386,8 +514,8 @@ export class BeatMakerGame implements Game {
   // -------------------------------------------------------------------------
   // Lights and messages
   // -------------------------------------------------------------------------
-  private padLed(pad: number): PadLed {
-    return this.ctx.audio.padColor(pad) ?? { r: 20, g: 20, b: 20 };
+  private padLed(pad: number, kit?: string): PadLed {
+    return this.ctx.audio.padColor(pad, kit) ?? { r: 20, g: 20, b: 20 };
   }
 
   private lightPads(): void {
@@ -399,12 +527,13 @@ export class BeatMakerGame implements Game {
     c.setButtonLight('record', this.recording);
     c.setButtonLight('nudge', this.view === 'record' && this.snap);
     c.setButtonLight('click', this.clickOn);
+    c.setButtonLight('fullLevel', this.fullLevel);
     c.setButtonLight('play', this.transport ? { r: 0, g: 127, b: 0 } : { r: 0, g: 25, b: 0 });
     c.setButtonLight('select', this.view === 'record' ? { r: 0, g: 40, b: 127 } : { r: 0, g: 0, b: 0 });
   }
 
-  private say(s: string): void {
-    this.message = { text: s, until: performance.now() + 2200 };
+  private say(s: string, ms = 2200): void {
+    this.message = { text: s, until: performance.now() + ms };
   }
 
   // -------------------------------------------------------------------------
@@ -412,8 +541,9 @@ export class BeatMakerGame implements Game {
   // -------------------------------------------------------------------------
   onInput(e: InputEvent): void {
     if (e.type === 'padDown') {
-      this.ctx.audio.playPad(e.pad, e.velocity);
-      this.onPad(e.pad, e.velocity, e.t);
+      const velocity = this.fullLevel ? this.ctx.settings().fullLevelVelocity : e.velocity;
+      this.ctx.audio.playPad(e.pad, velocity);
+      this.onPad(e.pad, velocity, e.t);
       return;
     }
     if (e.type === 'encoder') return this.onKnob(e.id, e.delta);
@@ -433,8 +563,10 @@ export class BeatMakerGame implements Game {
       case 'play':
         return this.togglePlay();
       case 'stop':
-        if (shift) return this.view === 'record' ? this.clearAll() : this.deleteSelected();
+        if (shift) return this.view === 'list' ? this.deleteSelected() : this.selected ? this.deleteNote() : this.clearAll();
         return this.back();
+      case 'fullLevel':
+        return this.toggleFullLevel();
       case 'select':
         if (this.view === 'record') return this.save(shift);
         if (this.selectedBeat) this.edit(this.selectedBeat);
@@ -445,6 +577,7 @@ export class BeatMakerGame implements Game {
         return this.say(this.clickOn ? 'Click on' : 'Click off (the count-in still clicks)');
       case 'left':
       case 'right':
+        if (this.selected) return this.moveSelected(e.id === 'left' ? -1 : 1);
         return this.setView(this.view === 'record' ? 'list' : 'record');
       case 'up':
       case 'down':
@@ -482,7 +615,35 @@ export class BeatMakerGame implements Game {
     for (const t of this.tiles) if (inRect(t.rect, x, y)) return t.turn(x < t.rect.x + t.rect.w / 2 ? -1 : 1);
     for (const b of this.buttons) if (inRect(b.rect, x, y)) return b.run();
     const row = this.rowRects.findIndex((r) => inRect(r, x, y));
-    if (row >= 0 && row !== this.listIndex) this.moveList(row - this.listIndex);
+    if (row >= 0 && row !== this.listIndex) return this.moveList(row - this.listIndex);
+    if (this.view !== 'record') return;
+    // The nearest dot within reach; empty timeline space lets go of the picked one.
+    let best: (typeof this.dots)[number] | null = null;
+    let bestD = Infinity;
+    for (const d of this.dots) {
+      const dist = Math.hypot(d.x - x, d.y - y);
+      if (dist <= Math.max(DOT_HIT_PX, d.r + 6) && dist < bestD) [best, bestD] = [d, dist];
+    }
+    if (best) {
+      if (best.note !== this.selected) this.select(best.note);
+      this.drag = { startX: x, moved: false };
+    } else if (inRect(this.timelineRect, x, y)) this.select(null);
+  }
+
+  /** Dragging a picked dot moves it along the grid lines. */
+  onDrag(x: number): void {
+    const d = this.drag;
+    const area = this.timelineRect;
+    if (!d || !area || !this.selected) return;
+    if (!d.moved && Math.abs(x - d.startX) < DRAG_START_PX) return;
+    d.moved = true;
+    const div = this.grid.div;
+    const line = Math.round(((x - area.x) / area.w) * this.loopBeats * div);
+    this.placeSelected(Math.max(0, Math.min(this.loopBeats * div - 1, line)) / div);
+  }
+
+  onRelease(): void {
+    this.drag = null;
   }
 
   // -------------------------------------------------------------------------
@@ -494,6 +655,8 @@ export class BeatMakerGame implements Game {
     this.tiles = [];
     this.buttons = [];
     this.rowRects = [];
+    this.dots = [];
+    this.timelineRect = null;
 
     // Beat pulse
     const t = this.transport;
@@ -517,9 +680,11 @@ export class BeatMakerGame implements Game {
     const status =
       this.message && now < this.message.until
         ? this.message.text
-        : this.view === 'record'
-          ? '● Record · ▶ loop · Nudge snaps to the grid · Select saves · Shift+● undo · Shift+■ clear · ◀▶ My beats'
-          : '▲▼ or knob choose · ▶ listen · Select edit · Shift+■ delete · ◀▶ Record';
+        : this.view === 'record' && this.selected
+          ? 'Drag the dot or ⇠⇢ (◀▶) to move it a grid line · 🗑 / Shift+■ deletes it · tap empty space when done'
+          : this.view === 'record'
+          ? '● Record · ▶ loop · Nudge snaps to the grid · Select saves · Shift+● undo · Shift+■ clear · tap a dot to fix it · ◀▶ My beats'
+          : '▲▼ or knob choose · ▶ listen · Select edit · ⤓ export (↻ = how many loops) · Shift+■ delete · ◀▶ Record';
     text(g, status, w / 2, h - footer / 2, fitSize(g, status, w * 0.94, Math.min(FONT.hint, unit * 0.32), 600), THEME.muted, 'center', 600);
   }
 
@@ -576,20 +741,31 @@ export class BeatMakerGame implements Game {
       color = THEME.good;
     } else status = this.notes.length ? 'Stopped' : 'Press ● Record and play along with the click';
     const name = this.editingId ? this.beats.find((b) => b.id === this.editingId)?.name : null;
-    const suffix = `${this.snap ? ` · 🧲 nudged to ${this.grid.label}` : ''}${name ? ` · ${name}${this.dirty ? ' *' : ''}` : ''}`;
+    const suffix = `${this.snap ? ` · 🧲 nudged to ${this.grid.label}` : ''}${this.fullLevel ? ` · full level ${this.ctx.settings().fullLevelVelocity}` : ''}${name ? ` · ${name}${this.dirty ? ' *' : ''}` : ''}`;
     const line = status + suffix;
     text(g, line, w / 2, statusY, fitSize(g, line, w * 0.94, Math.min(FONT.status, unit * 0.5)), color);
 
     const area = { x: w * 0.03, y: statusY + unit * 0.5, w: w * 0.94, h: bottom - statusY - unit * 0.75 };
     const pos = heardBeat !== null && heardBeat >= 0 ? wrap(heardBeat, this.loopBeats) : null;
-    this.drawTimeline(g, area, this.notes, this.loopBeats, pos, this.snap ? this.grid.div : null);
+    this.timelineRect = area;
+    this.dots = this.drawTimeline(g, area, this.notes, this.loopBeats, pos, this.snap ? this.grid.div : null, this.selected);
   }
 
   /**
    * Lanes, one per pad used, higher pads on top. With a grid, each note is drawn where it
-   * snaps, with a faint ghost and a line back to where it was played.
+   * snaps, with a faint ghost and a line back to where it was played; `selected` gets a ring.
+   * Returns where each dot went, for picking them.
    */
-  private drawTimeline(g: CanvasRenderingContext2D, area: Rect, notes: readonly BeatNote[], loopBeats: number, playhead: number | null, snapDiv: number | null): void {
+  private drawTimeline<N extends BeatNote & { kit: string }>(
+    g: CanvasRenderingContext2D,
+    area: Rect,
+    notes: readonly N[],
+    loopBeats: number,
+    playhead: number | null,
+    snapDiv: number | null,
+    selected: N | null = null,
+  ): { x: number; y: number; r: number; note: N }[] {
+    const dots: { x: number; y: number; r: number; note: N }[] = [];
     roundRect(g, area.x, area.y, area.w, area.h, 10, '#12161c');
     const div = snapDiv ?? this.grid.div;
     const xOf = (pos: number) => area.x + (pos / loopBeats) * area.w;
@@ -610,7 +786,7 @@ export class BeatMakerGame implements Game {
       const lane = pads.indexOf(n.pad);
       const cy = y0 + lane * laneH + laneH / 2;
       const r = Math.max(3, Math.min(laneH * 0.32, area.w / (loopBeats * 8)) * (0.55 + (0.45 * n.velocity) / 127));
-      const color = this.padLed(n.pad);
+      const color = this.padLed(n.pad, n.kit);
       let x = xOf(n.pos);
       if (snapDiv) {
         const snapped = wrap(Math.round(n.pos * snapDiv) / snapDiv, loopBeats);
@@ -634,11 +810,20 @@ export class BeatMakerGame implements Game {
       g.arc(x, cy, r, 0, Math.PI * 2);
       g.fillStyle = ledCss(color, 0.95);
       g.fill();
+      dots.push({ x, y: cy, r, note: n });
+      if (n === selected) {
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.arc(x, cy, r + 5, 0, Math.PI * 2);
+        g.stroke();
+      }
     }
     if (playhead !== null) {
       g.fillStyle = 'rgba(255,255,255,0.85)';
       g.fillRect(xOf(playhead) - 1.5, area.y, 3, area.h);
     }
+    return dots;
   }
 
   private drawList(g: CanvasRenderingContext2D, w: number, top: number, bottom: number, heardBeat: number | null, unit: number): void {
@@ -663,7 +848,7 @@ export class BeatMakerGame implements Game {
       text(g, info, r.x + 14, r.y + r.h * 0.7, fitSize(g, info, infoW - 20, Math.min(14, rowH * 0.22), 600), THEME.muted, 'left', 600);
       const loopBeats = b.bars * BEATS_PER_BAR;
       const pos = on && heardBeat !== null && heardBeat >= 0 ? wrap(heardBeat, loopBeats) : null;
-      this.drawTimeline(g, { x: r.x + infoW, y: r.y + 6, w: r.w - infoW - 8, h: r.h - 12 }, b.notes, loopBeats, pos, null);
+      this.drawTimeline(g, { x: r.x + infoW, y: r.y + 6, w: r.w - infoW - 8, h: r.h - 12 }, this.beatNotes(b), loopBeats, pos, null);
     }
   }
 
@@ -675,13 +860,24 @@ export class BeatMakerGame implements Game {
             { label: this.recording ? '● Stop rec' : '● Rec', on: this.recording, run: () => this.toggleRecord() },
             { label: playing ? '■ Stop' : '▶ Play', on: playing, run: () => this.togglePlay() },
             { label: '🧲 Nudge', on: this.snap, run: () => this.toggleNudge() },
-            { label: '↶ Undo', run: () => this.undo() },
-            { label: '✕ Clear', run: () => this.clearAll() },
+            ...(this.selected
+              ? [
+                  { label: '⇠ Move', run: () => this.moveSelected(-1) },
+                  { label: 'Move ⇢', run: () => this.moveSelected(1) },
+                  { label: '🗑 Note', run: () => this.deleteNote() },
+                ]
+              : [
+                  { label: '↶ Undo', run: () => this.undo() },
+                  { label: '✕ Clear', run: () => this.clearAll() },
+                ]),
             { label: '💾 Save', run: () => this.save(false) },
           ]
         : [
             { label: playing ? '■ Stop' : '▶ Listen', on: playing, run: () => this.togglePlay() },
             { label: '✎ Edit', run: () => this.selectedBeat && this.edit(this.selectedBeat) },
+            { label: `↻ ${this.exportPasses}×`, run: () => this.changeExportPasses() },
+            { label: this.exporting ? '⤓ …' : '⤓ WAV', run: () => void this.exportBeat('wav') },
+            { label: this.exporting ? '⤓ …' : '⤓ AAC', run: () => void this.exportBeat('aac') },
             { label: this.confirm?.what === 'delete' && performance.now() < this.confirm.until ? '🗑 Sure?' : '🗑 Delete', run: () => this.deleteSelected() },
           ];
     const gap = w * 0.012;

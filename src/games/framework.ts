@@ -28,6 +28,9 @@ export interface Game {
   draw(g: CanvasRenderingContext2D, w: number, h: number, now: number): void;
   /** Touch/click on the canvas, in the same CSS-pixel coordinates as draw(). */
   onTap?(x: number, y: number): void;
+  /** The finger/mouse moving after onTap, until onRelease (same coordinates). */
+  onDrag?(x: number, y: number): void;
+  onRelease?(x: number, y: number): void;
   stop(): void;
 }
 
