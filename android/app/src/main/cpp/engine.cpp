@@ -334,6 +334,17 @@ void Engine::synthNoteOn(int pad, int velocity, const SynthPatch &patch, float f
   push(c);
 }
 
+void Engine::synthPlay(int velocity, const SynthPatch &patch, float freq, int64_t heardNs, float holdS) {
+  Command c{Command::kSynthOn};
+  c.pad = -1;
+  c.velocity = velocity;
+  c.patch = patch;
+  c.freq = freq;
+  c.heardNs = heardNs;
+  c.hold = holdS;
+  push(c);
+}
+
 void Engine::synthNoteOff(int pad) {
   Command c{Command::kSynthOff};
   c.pad = pad;
@@ -627,10 +638,11 @@ void Engine::releaseSynth(SynthVoice &v, float seconds) {
 void Engine::startSynth(const Command &c) {
   const SynthPatch &p = c.patch;
   // Same pad: release the previous note quickly; past the voice limit: steal the oldest.
+  // Scheduled notes (pad -1) are queued ahead and never steal: they only take free slots.
   int live = 0;
   SynthVoice *oldest = nullptr;
   for (auto &v : synth_) {
-    if (!v.active || v.releasing) continue;
+    if (!v.active || v.releasing || c.pad < 0) continue;
     if (v.pad == c.pad) {
       releaseSynth(v, 0.03f);
       continue;
@@ -647,6 +659,7 @@ void Engine::startSynth(const Command &c) {
       break;
     }
   if (!slot) {
+    if (c.pad < 0) return;
     for (auto &v : synth_)
       if (!slot || v.startFrame < slot->startFrame) slot = &v;
   }
@@ -677,6 +690,7 @@ void Engine::startSynth(const Command &c) {
   v.filter.lowpass(v.cut, v.q, sr);
   // Notes without sustain end by themselves; held notes wait for note-off.
   if (p.sustain == 0) v.stopAt = static_cast<int64_t>((p.attack + p.decay * 1.3f + 0.05f) * sr);
+  else if (c.pad < 0) v.releaseAt = static_cast<int64_t>(std::max(c.hold, p.attack) * sr);
 }
 
 void Engine::renderSynth(SynthVoice &v, float *mix, int from, int n) {
@@ -688,6 +702,7 @@ void Engine::renderSynth(SynthVoice &v, float *mix, int from, int n) {
       v.active = false;
       return;
     }
+    if (v.releaseAt >= 0 && v.age >= v.releaseAt && !v.releasing) releaseSynth(v, v.patch.release);
     // Amplitude: linear attack, then exponential decay towards sustain; release falls to 0.
     if (v.releasing) {
       v.env *= v.releaseK;

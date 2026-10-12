@@ -94,6 +94,8 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
   void stopAll();
   /** Synth note for a pad at `freq` Hz; a new note on the same pad releases the old one. */
   void synthNoteOn(int pad, int velocity, const SynthPatch &patch, float freq, int64_t heardNs);
+  /** A scheduled note on no pad (Beat maker): sustaining patches release after `holdS`. */
+  void synthPlay(int velocity, const SynthPatch &patch, float freq, int64_t heardNs, float holdS);
   /** Releases the pad's held notes (notes without sustain ring out by themselves). */
   void synthNoteOff(int pad);
   void setMasterGain(float g);
@@ -117,6 +119,8 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
     int id = 0;
     int pad = 0;
     float freq = 0;
+    /** kSynthOn without a pad (-1): seconds until release; 0 = held until note-off. */
+    float hold = 0;
     SynthPatch patch;
   };
 
@@ -158,6 +162,7 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
     int64_t startFrame = 0;
     int64_t age = 0;       // frames since start
     int64_t stopAt = -1;   // frames since start; -1 = held until released
+    int64_t releaseAt = -1;  // frames since start to begin the release (scheduled notes)
     SynthPatch patch;
     double phase[2] = {0, 0};
     double inc[2] = {0, 0};

@@ -2,6 +2,7 @@ import { nativeBridge } from '../native/bridge';
 import { CLIP_INPUT_RANGE, KIT_BUS_GAIN, softClipCurve } from './engine';
 import { RoundRobin, selectLayers, velocityGain, type KitJson } from './kit';
 import { decodeKitBuffers, fetchKitJson, type KitBuffers } from './kitFiles';
+import { SynthVoices, type SynthPatch } from './synth';
 
 export const EXPORT_RATE = 48000;
 const CHANNELS = 2;
@@ -16,12 +17,21 @@ export interface RenderNote {
   at: number;
   pad: number;
   velocity: number;
+  /** Ignored for synth notes. */
   kit: string;
+  /** A synth note instead of a kit hit, held `hold` seconds. */
+  synth?: { patch: SynthPatch; freq: number; hold: number };
+}
+
+/** When a scheduled synth note has died away (SynthVoices timing). */
+function synthEnd(at: number, { patch: p, hold }: NonNullable<RenderNote['synth']>): number {
+  return at + (p.sustain > 0 ? Math.max(hold, p.attack) + p.release * 1.2 + 0.02 : p.attack + p.decay * 1.3 + 0.05);
 }
 
 /**
- * Renders kit hits offline, the way AudioEngine plays them live (velocity layers, crossfades,
- * velocity filter, round-robin, choke groups, kit bus level and soft clipper). `length` is in
+ * Renders kit hits and synth notes offline, the way AudioEngine plays them live (velocity
+ * layers, crossfades, velocity filter, round-robin, choke groups, SynthVoices, bus level and
+ * soft clipper). `length` is in
  * seconds; the render runs on until the last sound ends (at most MAX_TAIL_S more), and is
  * normalized up to EXPORT_PEAK.
  */
@@ -29,7 +39,7 @@ export async function renderKitNotes(notes: readonly RenderNote[], length: numbe
   const decoder = new OfflineAudioContext(CHANNELS, 1, EXPORT_RATE);
   const kits = new Map<string, { json: KitJson; buffers: KitBuffers }>();
   await Promise.all(
-    [...new Set(notes.map((n) => n.kit))].map(async (id) => {
+    [...new Set(notes.filter((n) => !n.synth).map((n) => n.kit))].map(async (id) => {
       const json = await fetchKitJson(id);
       kits.set(id, { json, buffers: await decodeKitBuffers(decoder, id, json) });
     }),
@@ -39,6 +49,7 @@ export async function renderKitNotes(notes: readonly RenderNote[], length: numbe
   const rr = new RoundRobin();
   const hits: { at: number; buffer: AudioBuffer; gain: number; cutoff?: number; choke?: string }[] = [];
   for (const n of notes) {
+    if (n.synth) continue;
     const kit = kits.get(n.kit);
     const id = kit?.json.pads[n.pad];
     const def = id ? kit!.json.instruments[id] : undefined;
@@ -51,7 +62,9 @@ export async function renderKitNotes(notes: readonly RenderNote[], length: numbe
       hits.push({ at: n.at, buffer, gain: velocityGain(n.velocity) * gain, cutoff, choke: def.chokeGroup && `${n.kit}/${def.chokeGroup}` });
     }
   }
-  const end = Math.max(length, ...hits.map((h) => Math.min(h.at + h.buffer.duration, length + MAX_TAIL_S)));
+  const synthNotes = notes.filter((n) => n.synth);
+  const ends = [...hits.map((h) => h.at + h.buffer.duration), ...synthNotes.map((n) => synthEnd(n.at, n.synth!))];
+  const end = Math.max(length, ...ends.map((e) => Math.min(e, length + MAX_TAIL_S)));
 
   const ctx = new OfflineAudioContext(CHANNELS, Math.ceil(end * EXPORT_RATE), EXPORT_RATE);
   const range = ctx.createGain();
@@ -61,6 +74,9 @@ export async function renderKitNotes(notes: readonly RenderNote[], length: numbe
   const bus = ctx.createGain();
   bus.gain.value = KIT_BUS_GAIN;
   bus.connect(range).connect(clipper).connect(ctx.destination);
+
+  const synth = new SynthVoices(ctx, bus);
+  for (const n of synthNotes) synth.schedule(n.synth!.freq, n.velocity, n.synth!.patch, n.at, n.synth!.hold);
 
   hits.sort((a, b) => a.at - b.at);
   const ringing = new Map<string, { gain: GainNode; source: AudioBufferSourceNode; at: number }[]>();

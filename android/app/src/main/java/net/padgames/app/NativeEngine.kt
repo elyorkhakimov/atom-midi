@@ -48,5 +48,6 @@ object NativeEngine {
     @JvmStatic external fun setHitLeds(packed: ByteArray)
     @JvmStatic external fun synthNoteOn(pad: Int, velocity: Int, patch: FloatArray, freq: Float, heardNs: Long)
     @JvmStatic external fun synthNoteOff(pad: Int)
+    @JvmStatic external fun synthPlay(velocity: Int, patch: FloatArray, freq: Float, heardNs: Long, holdS: Float)
     @JvmStatic external fun setShaping(threshold: Int, gamma: Float, doubleTriggerMs: Int)
 }

@@ -30,6 +30,8 @@ export interface Settings {
   jamTone: number;
   /** Beat maker: metronome while looping (the count-in always clicks). */
   beatClick: boolean;
+  /** Beat maker: playing a synth (Free Jam's Pluck, Warm pad or Make) instead of the kit. */
+  beatSynth: '' | 'pluck' | 'pad' | 'custom';
   setupPromptSeen: boolean;
 }
 
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jamTranspose: 0,
   jamTone: 1,
   beatClick: true,
+  beatSynth: '',
   setupPromptSeen: false,
 };
 

@@ -145,6 +145,11 @@ export function padFrequency(pad: number, patch: SynthPatch, transpose = 0): num
 export interface SynthOut {
   noteOn(pad: number, velocity: number, patch: SynthPatch, transpose?: number): void;
   noteOff(pad: number): void;
+  /**
+   * A recorded note at audio time `when`, held `hold` seconds (patches with sustain then
+   * release; others ring out). Independent of the pads: never cuts or is cut by them.
+   */
+  schedule(freq: number, velocity: number, patch: SynthPatch, when: number, hold: number): void;
   stopAll(): void;
 }
 
@@ -160,6 +165,7 @@ const MAX_SYNTH_VOICES = 16;
 const tc60 = (t: number) => Math.max(0.001, t / 6.9);
 
 interface SynthVoice {
+  /** -1: a scheduled note. */
   pad: number;
   oscs: OscillatorNode[];
   amp: GainNode;
@@ -170,6 +176,7 @@ interface SynthVoice {
 /** Polyphonic voices: one per held pad, oldest stolen past the limit. */
 export class SynthVoices implements SynthOut {
   private voices: SynthVoice[] = [];
+  private scheduled: SynthVoice[] = [];
 
   constructor(
     private readonly ctx: BaseAudioContext,
@@ -177,14 +184,24 @@ export class SynthVoices implements SynthOut {
   ) {}
 
   noteOn(pad: number, velocity: number, patch: SynthPatch, transpose = 0): void {
-    const ctx = this.ctx;
-    const t = ctx.currentTime;
+    const t = this.ctx.currentTime;
     for (const v of this.voices.filter((v) => v.pad === pad)) this.release(v, t, 0.03);
     while (this.voices.length >= MAX_SYNTH_VOICES) this.release(this.voices[0]!, t, 0.01);
+    this.voices.push(this.start(pad, padFrequency(pad, patch, transpose), velocity, patch, t));
+  }
 
+  /** Not counted against the voice limit: scheduled notes are all queued ahead of time. */
+  schedule(freq: number, velocity: number, patch: SynthPatch, when: number, hold: number): void {
+    const t = Math.max(when, this.ctx.currentTime);
+    const voice = this.start(-1, freq, velocity, patch, t);
+    this.scheduled.push(voice);
+    if (patch.sustain > 0) this.release(voice, t + Math.max(hold, patch.attack), patch.release);
+  }
+
+  private start(pad: number, freq: number, velocity: number, patch: SynthPatch, t: number): SynthVoice {
+    const ctx = this.ctx;
     const vel = clamp(velocity, 1, 127) / 127;
     const peak = 0.5 * patch.level * WAVE_GAIN[patch.wave] * vel ** 2 / (patch.detune > 0 ? 1.4 : 1);
-    const freq = padFrequency(pad, patch, transpose);
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -216,10 +233,11 @@ export class SynthVoices implements SynthOut {
       amp.disconnect();
       filter.disconnect();
       this.voices = this.voices.filter((v) => v !== voice);
+      this.scheduled = this.scheduled.filter((v) => v !== voice);
     };
     // Notes without sustain end by themselves; held notes wait for noteOff.
     if (patch.sustain === 0) for (const o of oscs) o.stop(t + patch.attack + patch.decay * 1.3 + 0.05);
-    this.voices.push(voice);
+    return voice;
   }
 
   /** Pad hits are short taps, so a patch without sustain rings out its decay like a plucked string. */
@@ -230,7 +248,8 @@ export class SynthVoices implements SynthOut {
 
   stopAll(): void {
     const t = this.ctx.currentTime;
-    for (const v of [...this.voices]) this.release(v, t, 0.02);
+    for (const v of [...this.voices, ...this.scheduled]) this.release(v, t, 0.02);
+    this.scheduled = [];
   }
 
   private release(v: SynthVoice, t: number, releaseS: number): void {

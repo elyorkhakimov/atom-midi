@@ -1,3 +1,4 @@
+import { SYNTH_PRESETS, sanitizePatch, type SynthPatch } from '../../audio/synth';
 import type { Pattern } from '../rhythmCopy/patterns';
 
 /** One recorded hit. `pos` is in beats from the loop start, 0 ≤ pos < loop length. */
@@ -5,8 +6,35 @@ export interface BeatNote {
   pos: number;
   pad: number;
   velocity: number;
-  /** Kit it was played with; older beats leave it out and use the beat's kitId. */
+  /**
+   * Sound it was played with: a kit id, or a synth id (SYNTH_PREFIX…) from the beat's
+   * `synths`. Older beats leave it out and use the beat's kitId.
+   */
   kit?: string;
+  /** Synth notes: how long the pad was held, in beats. */
+  len?: number;
+}
+
+export type SynthPreset = 'pluck' | 'pad' | 'custom';
+export const SYNTH_NAMES: Record<SynthPreset, string> = { pluck: SYNTH_PRESETS.pluck.name, pad: SYNTH_PRESETS.pad.name, custom: 'Make' };
+
+/** A synth sound as it was when played, so later edits (Make, key, tone) don't change the beat. */
+export interface BeatSynth {
+  preset: SynthPreset;
+  patch: SynthPatch;
+  transpose: number;
+}
+
+export const SYNTH_PREFIX = 'synth:';
+/** Synth notes without a recorded length (held this many beats). */
+export const DEFAULT_SYNTH_LEN = 0.25;
+
+/** Same sound, same id: a short hash of the frozen sound. */
+export function synthSoundId(s: BeatSynth): string {
+  const json = JSON.stringify([s.preset, s.patch, s.transpose]);
+  let h = 5381;
+  for (let i = 0; i < json.length; i++) h = ((h * 33) ^ json.charCodeAt(i)) >>> 0;
+  return `${SYNTH_PREFIX}${s.preset}.${h.toString(36)}`;
 }
 
 /** A beat saved under "My beats" (Beat maker) and offered in Rhythm copy. */
@@ -17,6 +45,8 @@ export interface CustomBeat {
   bars: number;
   kitId: string;
   notes: BeatNote[];
+  /** Synth sounds the notes use, by id. */
+  synths?: Record<string, BeatSynth>;
   savedAt: number;
 }
 
@@ -116,6 +146,17 @@ export function nextBeatName(beats: readonly CustomBeat[]): string {
   for (let i = 1; ; i++) if (!taken.has(`Beat ${i}`)) return `Beat ${i}`;
 }
 
+/** Repairs synth patches from storage (missing or out-of-range fields). */
+export function sanitizeBeat(b: CustomBeat): CustomBeat {
+  if (!b.synths) return b;
+  const synths: Record<string, BeatSynth> = {};
+  for (const [id, s] of Object.entries(b.synths)) {
+    if (!s || !(s.preset in SYNTH_NAMES)) continue;
+    synths[id] = { preset: s.preset, patch: sanitizePatch(s.patch), transpose: Number.isFinite(s.transpose) ? s.transpose : 0 };
+  }
+  return { ...b, synths };
+}
+
 /** Drops malformed entries from storage. */
 export function isCustomBeat(b: unknown): b is CustomBeat {
   const x = b as CustomBeat;
@@ -127,6 +168,7 @@ export function isCustomBeat(b: unknown): b is CustomBeat {
     Number.isInteger(x.bars) &&
     x.bars > 0 &&
     Array.isArray(x.notes) &&
-    x.notes.every((n) => Number.isFinite(n?.pos) && Number.isInteger(n?.pad) && n.pad >= 0 && n.pad < 16 && Number.isFinite(n?.velocity) && (n.kit === undefined || typeof n.kit === 'string'))
+    x.notes.every((n) => Number.isFinite(n?.pos) && Number.isInteger(n?.pad) && n.pad >= 0 && n.pad < 16 && Number.isFinite(n?.velocity) && (n.kit === undefined || typeof n.kit === 'string') && (n.len === undefined || Number.isFinite(n.len))) &&
+    (x.synths === undefined || (typeof x.synths === 'object' && x.synths !== null))
   );
 }

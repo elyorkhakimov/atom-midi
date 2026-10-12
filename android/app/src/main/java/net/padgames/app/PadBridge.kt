@@ -102,6 +102,10 @@ class PadBridge(private val context: Context, private val webView: WebView) {
     @JavascriptInterface fun synthNoteOff(pad: Int) = NativeEngine.synthNoteOff(pad)
 
     @JavascriptInterface
+    fun synthPlay(velocity: Int, patchCsv: String, freq: Double, heardNs: Double, holdS: Double) =
+        NativeEngine.synthPlay(velocity, floats(patchCsv), freq.toFloat(), heardNs.toLong(), holdS.toFloat())
+
+    @JavascriptInterface
     fun setShaping(threshold: Int, gamma: Double, doubleTriggerMs: Int) =
         NativeEngine.setShaping(threshold, gamma.toFloat(), doubleTriggerMs)
 

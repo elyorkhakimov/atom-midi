@@ -1,5 +1,6 @@
 import { KITS } from '../../audio/kit';
-import { renderKitNotes, saveRender } from '../../audio/render';
+import { renderKitNotes, saveRender, type RenderNote } from '../../audio/render';
+import { SYNTH_PRESETS, isRoot, padFrequency, sanitizePatch } from '../../audio/synth';
 import type { InputEvent } from '../../input/events';
 import { KnobDetents } from '../../input/knob';
 import { PAD_COUNT } from '../../midi/atomMap';
@@ -11,6 +12,7 @@ import {
   BAR_CHOICES,
   BEATS_PER_BAR,
   DEFAULT_GRID,
+  DEFAULT_SYNTH_LEN,
   GRIDS,
   adjacentLine,
   hitPosition,
@@ -19,9 +21,14 @@ import {
   resizeLoop,
   sameCell,
   sortNotes,
+  SYNTH_NAMES,
+  SYNTH_PREFIX,
+  synthSoundId,
   wrap,
   type BeatNote,
+  type BeatSynth,
   type CustomBeat,
+  type SynthPreset,
 } from './beat';
 
 const MIN_BPM = 40;
@@ -40,6 +47,15 @@ const EXPORT_PASSES = [1, 2, 4, 8];
 const DRAG_START_PX = 8;
 /** Smallest touch target around a dot (px). */
 const DOT_HIT_PX = 20;
+/** Free Jam's synths, after the kits on the Sound knob. */
+const SYNTH_ORDER: readonly SynthPreset[] = ['pluck', 'pad', 'custom'];
+/** Free Jam's synth page colours: scale roots, other notes. */
+const SYNTH_LED: Record<SynthPreset, { root: PadLed; note: PadLed }> = {
+  pluck: { root: { r: 90, g: 127, b: 127 }, note: { r: 0, g: 70, b: 90 } },
+  pad: { root: { r: 127, g: 90, b: 127 }, note: { r: 55, g: 15, b: 100 } },
+  custom: { root: { r: 127, g: 110, b: 60 }, note: { r: 100, g: 45, b: 0 } },
+};
+type Synths = Readonly<Record<string, BeatSynth>>;
 
 interface RecNote extends BeatNote {
   kit: string;
@@ -69,12 +85,13 @@ interface Button {
  * under My beats (also playable in Rhythm copy). The loop keeps going while recording, so
  * each pass layers on top of the last one.
  *
- * Each note keeps the kit it was played with, so changing kits mid-beat layers sounds.
+ * Each note keeps the sound it was played with (a kit, or Free Jam's Pluck, Warm pad or Make
+ * synth as it was set up then), so changing sounds mid-beat layers them.
  *
  * Record = count-in, then record (again = stop recording) · Play = loop on/off · Nudge = snap
  * on/off · Shift+Nudge = grid · Select = save (Shift = save as new) · Shift+Record = undo
  * the last take · Shift+Stop = clear · Click = metronome · Full Level = new hits at one
- * velocity · ◀▶ = Record / My beats. Knobs: tempo, length, grid, kit.
+ * velocity · ◀▶ = Record / My beats. Knobs: tempo, length, grid, sound.
  * Tap a dot to pick it: drag it (or ◀▶) to another grid line, Shift+Stop deletes it.
  */
 export class BeatMakerGame implements Game {
@@ -113,6 +130,10 @@ export class BeatMakerGame implements Game {
   private timelineRect: Rect | null = null;
   private exportPasses = 4;
   private exporting = false;
+  /** Synth sounds the draft's notes use, by id. */
+  private synths: Record<string, BeatSynth> = {};
+  /** Synth notes being recorded while their pad is held: their length comes on release. */
+  private readonly holding = new Map<number, { note: RecNote; heard: number }>();
 
   start(ctx: GameContext): void {
     this.ctx = ctx;
@@ -132,14 +153,59 @@ export class BeatMakerGame implements Game {
     this.ctx.controller.setButtonLight('fullLevel', false);
   }
 
-  /** Hits sound straight from the MIDI thread in the Android app (at the Full Level velocity while it's on). */
+  /**
+   * Hits sound straight from the MIDI thread in the Android app: the kit or the synth, at the
+   * Full Level velocity while it's on.
+   */
   private updateLive(): void {
-    this.ctx.audio.setLivePads(0xffff, { fixedVelocity: this.fullLevel ? this.ctx.settings().fullLevelVelocity : 0 });
+    const synth = this.currentSynth();
+    this.ctx.audio.setLivePads(0xffff, {
+      fixedVelocity: this.fullLevel ? this.ctx.settings().fullLevelVelocity : 0,
+      synth: synth ? { patch: synth.patch, transpose: synth.transpose } : undefined,
+    });
+  }
+
+  private get synthChoice(): SynthPreset | null {
+    const s = this.ctx.settings().beatSynth;
+    return s && s in SYNTH_NAMES ? s : null;
+  }
+
+  /** The synth being played, frozen as it sounds in Free Jam (patch, key and tone). */
+  private currentSynth(): BeatSynth | null {
+    const preset = this.synthChoice;
+    if (!preset) return null;
+    const st = this.ctx.settings();
+    const patch = preset === 'custom' ? sanitizePatch(st.synthCustom) : SYNTH_PRESETS[preset].patch;
+    return { preset, patch: st.jamTone === 1 ? patch : { ...patch, cutoff: patch.cutoff * st.jamTone }, transpose: st.jamTranspose };
+  }
+
+  /** What new notes are recorded with: the kit id, or the current synth's id. */
+  private currentSoundId(): string {
+    const synth = this.currentSynth();
+    if (!synth) return this.ctx.settings().kitId;
+    const id = synthSoundId(synth);
+    this.synths[id] = synth;
+    return id;
+  }
+
+  private soundName(id: string, synths: Synths): string {
+    const synth = synths[id];
+    return synth ? SYNTH_NAMES[synth.preset] : (KITS.find((k) => k.id === id)?.name ?? id);
+  }
+
+  /** Plays a recorded note at audio time `at`, with the sound it was recorded with. */
+  private playNote(n: BeatNote & { kit: string }, at: number, synths: Synths, beatDur: number): void {
+    const synth = synths[n.kit];
+    if (synth) {
+      const freq = padFrequency(n.pad, synth.patch, synth.transpose);
+      this.ctx.audio.synth.schedule(freq, n.velocity, synth.patch, at, (n.len ?? DEFAULT_SYNTH_LEN) * beatDur);
+    } else if (!n.kit.startsWith(SYNTH_PREFIX)) this.ctx.audio.playPad(n.pad, n.velocity, at, n.kit);
   }
 
   /** Notes play from the kit they were recorded with, so those kits must be loaded. */
   private preloadKits(notes: readonly { kit: string }[]): void {
-    for (const id of new Set(notes.map((n) => n.kit))) void this.ctx.audio.preloadKit(id).catch(() => {});
+    const kits = new Set(notes.map((n) => n.kit).filter((id) => !id.startsWith(SYNTH_PREFIX)));
+    for (const id of kits) void this.ctx.audio.preloadKit(id).catch(() => {});
   }
 
   /** A saved beat's notes, each with its kit (older beats have one kit for all). */
@@ -168,12 +234,12 @@ export class BeatMakerGame implements Game {
   }
 
   /** The loop the transport plays: the draft, or the saved beat picked in My beats. */
-  private source(): { notes: readonly (BeatNote & { kit: string; quietUntil?: number })[]; bpm: number; loopBeats: number } {
+  private source(): { notes: readonly (BeatNote & { kit: string; quietUntil?: number })[]; synths: Synths; bpm: number; loopBeats: number } {
     if (this.view === 'list') {
       const b = this.selectedBeat;
-      return { notes: b ? this.beatNotes(b) : [], bpm: b?.bpm ?? this.bpm, loopBeats: (b?.bars ?? 1) * BEATS_PER_BAR };
+      return { notes: b ? this.beatNotes(b) : [], synths: b?.synths ?? {}, bpm: b?.bpm ?? this.bpm, loopBeats: (b?.bars ?? 1) * BEATS_PER_BAR };
     }
-    return { notes: this.heard(), bpm: this.bpm, loopBeats: this.loopBeats };
+    return { notes: this.heard(), synths: this.synths, bpm: this.bpm, loopBeats: this.loopBeats };
   }
 
   private get clickOn(): boolean {
@@ -188,7 +254,7 @@ export class BeatMakerGame implements Game {
     const t = this.transport;
     if (!t) return;
     const { audio, controller } = this.ctx;
-    const { notes, bpm, loopBeats } = this.source();
+    const { notes, synths, bpm, loopBeats } = this.source();
     const beatDur = 60 / bpm;
     const from = t.cursor;
     const to = (audio.clock.now + SCHEDULE_AHEAD_S - t.origin) / beatDur;
@@ -207,10 +273,11 @@ export class BeatMakerGame implements Game {
         if (x < from || x >= to || x < 0) continue;
         const at = t.origin + x * beatDur;
         if (n.quietUntil !== undefined && at < n.quietUntil) continue;
-        audio.playPad(n.pad, n.velocity, at, n.kit);
+        this.playNote(n, at, synths, beatDur);
         // Secondary visual cue: flash the pad as it plays.
         const heardAt = audio.clock.audioToPerf(at);
         this.timers.at(heardAt, () => controller.setPad(n.pad, { r: 127, g: 127, b: 127 }));
+        // Back to what the pad plays now.
         this.timers.at(heardAt + 90, () => controller.setPad(n.pad, this.padLed(n.pad)));
       }
     }
@@ -274,9 +341,24 @@ export class BeatMakerGame implements Game {
     const pos = hitPosition(heard, tr.origin, beatDur, this.loopBeats);
     if (pos === null) return;
     // Its next play-back is the next pass, not the grid line it may snap to right after the hit.
-    this.notes.push({ pos, pad, velocity, kit: this.ctx.settings().kitId, take: this.take, quietUntil: heard + (this.loopBeats * beatDur) / 2 });
+    const kit = this.currentSoundId();
+    const note: RecNote = { pos, pad, velocity, kit, take: this.take, quietUntil: heard + (this.loopBeats * beatDur) / 2 };
+    if (this.synths[kit]) {
+      note.len = DEFAULT_SYNTH_LEN;
+      this.holding.set(pad, { note, heard });
+    }
+    this.notes.push(note);
     sortNotes(this.notes);
     this.dirty = true;
+  }
+
+  /** A synth note's length is how long its pad was held. */
+  private onPadUp(pad: number, t: number): void {
+    const h = this.holding.get(pad);
+    if (!h) return;
+    this.holding.delete(pad);
+    const heard = this.ctx.audio.clock.perfToAudio(this.ctx.adjust(t));
+    h.note.len = Math.max(0.05, Math.min(this.loopBeats, (heard - h.heard) / (60 / this.bpm)));
   }
 
   // -------------------------------------------------------------------------
@@ -309,17 +391,28 @@ export class BeatMakerGame implements Game {
     this.say(`Length: ${next} bar${next > 1 ? 's' : ''}${this.notes.length && next * BEATS_PER_BAR > before ? ' · groove repeated' : ''}`);
   }
 
-  private changeKit(delta: number): void {
-    const current = this.ctx.settings().kitId;
-    const i = KITS.findIndex((k) => k.id === current);
-    this.selectKit(KITS[(i + delta + KITS.length) % KITS.length]!.id);
+  /** Knob 4: the kits, then Free Jam's synths. */
+  private changeSound(delta: number): void {
+    const ids: string[] = [...KITS.map((k) => k.id), ...SYNTH_ORDER];
+    const i = ids.indexOf(this.synthChoice ?? this.ctx.settings().kitId);
+    const next = ids[(i + delta + ids.length) % ids.length]!;
+    if (!SYNTH_ORDER.includes(next as SynthPreset)) return this.selectKit(next);
+    this.ctx.updateSettings({ beatSynth: next as SynthPreset });
+    this.updateLive();
+    this.lightPads();
+    this.say(`Sound: ${SYNTH_NAMES[next as SynthPreset]}${next === 'custom' ? ' (as set up in Free jam)' : ''}`);
   }
 
   private selectKit(id: string): void {
-    if (id === this.ctx.settings().kitId || !KITS.some((k) => k.id === id)) return;
-    this.ctx.updateSettings({ kitId: id });
-    void this.ctx.audio.loadKit(id).then(() => this.lightPads());
-    this.say(`Kit: ${KITS.find((k) => k.id === id)?.name ?? id}`);
+    if (!KITS.some((k) => k.id === id)) return;
+    const changed = id !== this.ctx.settings().kitId;
+    const wasSynth = Boolean(this.synthChoice);
+    if (!changed && !wasSynth) return;
+    this.ctx.updateSettings({ kitId: id, beatSynth: '' });
+    this.updateLive();
+    if (changed) void this.ctx.audio.loadKit(id).then(() => this.lightPads());
+    this.lightPads();
+    this.say(`Sound: ${KITS.find((k) => k.id === id)?.name ?? id}`);
   }
 
   // --- Single notes: tap a dot to pick it ---------------------------------
@@ -329,7 +422,7 @@ export class BeatMakerGame implements Game {
   }
 
   private audition(note: RecNote): void {
-    this.ctx.audio.playPad(note.pad, note.velocity, undefined, note.kit);
+    this.playNote(note, this.ctx.audio.clock.now, this.synths, 60 / this.bpm);
   }
 
   /** The picked note, plus (under Nudge) any others that snap onto the same dot. */
@@ -394,8 +487,15 @@ export class BeatMakerGame implements Game {
   }
 
   private save(asNew: boolean): void {
-    const notes = this.heard().map(({ pos, pad, velocity, kit }) => ({ pos: Math.round(pos * 1e4) / 1e4, pad, velocity, kit }));
+    const notes: BeatNote[] = this.heard().map(({ pos, pad, velocity, kit, len }) => ({
+      pos: Math.round(pos * 1e4) / 1e4,
+      pad,
+      velocity,
+      kit,
+      ...(len !== undefined && { len: Math.round(len * 1e4) / 1e4 }),
+    }));
     if (!notes.length) return this.say('Record something first');
+    const synths = Object.fromEntries(Object.entries(this.synths).filter(([id]) => notes.some((n) => n.kit === id)));
     const existing = !asNew && this.editingId ? this.beats.findIndex((b) => b.id === this.editingId) : -1;
     const beat: CustomBeat = {
       id: existing >= 0 ? this.editingId! : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
@@ -404,6 +504,7 @@ export class BeatMakerGame implements Game {
       bars: this.bars,
       kitId: this.ctx.settings().kitId,
       notes,
+      ...(Object.keys(synths).length > 0 && { synths }),
       savedAt: Date.now(),
     };
     if (existing >= 0) this.beats[existing] = beat;
@@ -421,6 +522,7 @@ export class BeatMakerGame implements Game {
     this.bpm = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(beat.bpm)));
     this.bars = beat.bars;
     this.notes = sortNotes(this.beatNotes(beat).map((n) => ({ ...n, take: 0 })));
+    this.synths = { ...beat.synths };
     this.preloadKits(this.notes);
     this.take = 0;
     this.snap = false;
@@ -449,9 +551,16 @@ export class BeatMakerGame implements Game {
       await new Promise((r) => setTimeout(r, 50));
       const beatDur = 60 / beat.bpm;
       const loopBeats = beat.bars * BEATS_PER_BAR;
-      const notes = [];
+      const notes: RenderNote[] = [];
       for (let pass = 0; pass < this.exportPasses; pass++) {
-        for (const n of this.beatNotes(beat)) notes.push({ ...n, at: (pass * loopBeats + n.pos) * beatDur });
+        for (const n of this.beatNotes(beat)) {
+          const synth = beat.synths?.[n.kit];
+          notes.push({
+            ...n,
+            at: (pass * loopBeats + n.pos) * beatDur,
+            synth: synth && { patch: synth.patch, freq: padFrequency(n.pad, synth.patch, synth.transpose), hold: (n.len ?? DEFAULT_SYNTH_LEN) * beatDur },
+          });
+        }
       }
       const audio = await renderKitNotes(notes, this.exportPasses * loopBeats * beatDur);
       this.say(await saveRender(audio, beat.name, format), 6000);
@@ -514,8 +623,18 @@ export class BeatMakerGame implements Game {
   // -------------------------------------------------------------------------
   // Lights and messages
   // -------------------------------------------------------------------------
-  private padLed(pad: number, kit?: string): PadLed {
-    return this.ctx.audio.padColor(pad, kit) ?? { r: 20, g: 20, b: 20 };
+  /** What the pad plays now: the kit's colour, or the synth's (scale roots brighter). */
+  private padLed(pad: number): PadLed {
+    const synth = this.currentSynth();
+    if (synth) return SYNTH_LED[synth.preset][isRoot(pad, synth.patch.scale) ? 'root' : 'note'];
+    return this.ctx.audio.padColor(pad) ?? { r: 20, g: 20, b: 20 };
+  }
+
+  /** A recorded note's colour, from the sound it was played with. */
+  private noteColor(n: BeatNote & { kit: string }, synths: Synths): PadLed {
+    const synth = synths[n.kit];
+    if (synth) return SYNTH_LED[synth.preset].root;
+    return this.ctx.audio.padColor(n.pad, n.kit) ?? { r: 90, g: 90, b: 90 };
   }
 
   private lightPads(): void {
@@ -542,9 +661,15 @@ export class BeatMakerGame implements Game {
   onInput(e: InputEvent): void {
     if (e.type === 'padDown') {
       const velocity = this.fullLevel ? this.ctx.settings().fullLevelVelocity : e.velocity;
-      this.ctx.audio.playPad(e.pad, velocity);
+      const synth = this.currentSynth();
+      if (synth) this.ctx.audio.synth.noteOn(e.pad, velocity, synth.patch, synth.transpose);
+      else this.ctx.audio.playPad(e.pad, velocity);
       this.onPad(e.pad, velocity, e.t);
       return;
+    }
+    if (e.type === 'padUp') {
+      this.ctx.audio.synth.noteOff(e.pad);
+      return this.onPadUp(e.pad, e.t);
     }
     if (e.type === 'encoder') return this.onKnob(e.id, e.delta);
     if (e.type !== 'button') return;
@@ -596,7 +721,7 @@ export class BeatMakerGame implements Game {
     if (steps) this.knobTurns()[id]?.(steps);
   }
 
-  /** Knobs 1–4 and the matching on-screen tiles: tempo, length, grid, kit. */
+  /** Knobs 1–4 and the matching on-screen tiles: tempo, length, grid, sound. */
   private knobTurns(): ((n: number) => void)[] {
     return [
       (n) => {
@@ -605,7 +730,7 @@ export class BeatMakerGame implements Game {
       },
       (n) => this.changeBars(Math.sign(n)),
       (n) => this.changeGrid(Math.sign(n)),
-      (n) => this.changeKit(Math.sign(n)),
+      (n) => this.changeSound(Math.sign(n)),
     ];
   }
 
@@ -704,12 +829,12 @@ export class BeatMakerGame implements Game {
 
   private drawRecord(g: CanvasRenderingContext2D, w: number, top: number, bottom: number, heardBeat: number | null, unit: number): void {
     // Settings tiles (knobs 1–4): tap the left half to lower, the right half to raise.
-    const kit = KITS.find((k) => k.id === this.ctx.settings().kitId)?.name ?? '';
+    const sound = this.synthChoice ? SYNTH_NAMES[this.synthChoice] : (KITS.find((k) => k.id === this.ctx.settings().kitId)?.name ?? '');
     const tiles = [
       ['Tempo', `${this.bpm} BPM`],
       ['Length', `${this.bars} bar${this.bars > 1 ? 's' : ''}`],
       ['Grid', this.grid.label],
-      ['Kit', kit],
+      ['Sound', sound],
     ];
     const turns = this.knobTurns();
     const gap = w * 0.015;
@@ -748,11 +873,11 @@ export class BeatMakerGame implements Game {
     const area = { x: w * 0.03, y: statusY + unit * 0.5, w: w * 0.94, h: bottom - statusY - unit * 0.75 };
     const pos = heardBeat !== null && heardBeat >= 0 ? wrap(heardBeat, this.loopBeats) : null;
     this.timelineRect = area;
-    this.dots = this.drawTimeline(g, area, this.notes, this.loopBeats, pos, this.snap ? this.grid.div : null, this.selected);
+    this.dots = this.drawTimeline(g, area, this.notes, this.synths, this.loopBeats, pos, this.snap ? this.grid.div : null, this.selected);
   }
 
   /**
-   * Lanes, one per pad used, higher pads on top. With a grid, each note is drawn where it
+   * Lanes, one per pad and sound used, higher pads on top. With a grid, each note is drawn where it
    * snaps, with a faint ghost and a line back to where it was played; `selected` gets a ring.
    * Returns where each dot went, for picking them.
    */
@@ -760,6 +885,7 @@ export class BeatMakerGame implements Game {
     g: CanvasRenderingContext2D,
     area: Rect,
     notes: readonly N[],
+    synths: Synths,
     loopBeats: number,
     playhead: number | null,
     snapDiv: number | null,
@@ -776,17 +902,20 @@ export class BeatMakerGame implements Game {
       g.fillStyle = bar ? 'rgba(255,255,255,0.35)' : onBeat ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)';
       g.fillRect(xOf(beat) - (bar ? 1 : 0.5), area.y, bar ? 2 : 1, area.h);
     }
-    const pads = [...new Set(notes.map((n) => n.pad))].sort((a, b) => b - a);
-    if (!pads.length) {
+    const laneOf = (n: N) => `${n.pad}|${n.kit}`;
+    const lanes = [...new Map(notes.map((n) => [laneOf(n), n] as const)).entries()]
+      .sort(([, a], [, b]) => b.pad - a.pad || a.kit.localeCompare(b.kit))
+      .map(([key]) => key);
+    if (!lanes.length) {
       text(g, 'Your beat shows up here', area.x + area.w / 2, area.y + area.h / 2, Math.min(18, area.h * 0.12), THEME.muted, 'center', 600);
     }
-    const laneH = pads.length ? Math.min(area.h / pads.length, 56) : 0;
-    const y0 = area.y + (area.h - laneH * pads.length) / 2;
+    const laneH = lanes.length ? Math.min(area.h / lanes.length, 56) : 0;
+    const y0 = area.y + (area.h - laneH * lanes.length) / 2;
     for (const n of notes) {
-      const lane = pads.indexOf(n.pad);
+      const lane = lanes.indexOf(laneOf(n));
       const cy = y0 + lane * laneH + laneH / 2;
       const r = Math.max(3, Math.min(laneH * 0.32, area.w / (loopBeats * 8)) * (0.55 + (0.45 * n.velocity) / 127));
-      const color = this.padLed(n.pad, n.kit);
+      const color = this.noteColor(n, synths);
       let x = xOf(n.pos);
       if (snapDiv) {
         const snapped = wrap(Math.round(n.pos * snapDiv) / snapDiv, loopBeats);
@@ -843,12 +972,13 @@ export class BeatMakerGame implements Game {
       roundRect(g, r.x, r.y, r.w, r.h, 12, on ? '#24405e' : THEME.panel);
       const infoW = r.w * 0.36;
       text(g, b.name, r.x + 14, r.y + r.h * 0.34, fitSize(g, b.name, infoW - 20, Math.min(20, rowH * 0.3)), THEME.text, 'left');
-      const kit = KITS.find((k) => k.id === b.kitId)?.name ?? b.kitId;
-      const info = `${b.bpm} BPM · ${b.bars} bar${b.bars > 1 ? 's' : ''} · ${kit}`;
+      const synths = b.synths ?? {};
+      const sounds = [...new Set(this.beatNotes(b).map((n) => this.soundName(n.kit, synths)))].join(' + ');
+      const info = `${b.bpm} BPM · ${b.bars} bar${b.bars > 1 ? 's' : ''} · ${sounds}`;
       text(g, info, r.x + 14, r.y + r.h * 0.7, fitSize(g, info, infoW - 20, Math.min(14, rowH * 0.22), 600), THEME.muted, 'left', 600);
       const loopBeats = b.bars * BEATS_PER_BAR;
       const pos = on && heardBeat !== null && heardBeat >= 0 ? wrap(heardBeat, loopBeats) : null;
-      this.drawTimeline(g, { x: r.x + infoW, y: r.y + 6, w: r.w - infoW - 8, h: r.h - 12 }, this.beatNotes(b), loopBeats, pos, null);
+      this.drawTimeline(g, { x: r.x + infoW, y: r.y + 6, w: r.w - infoW - 8, h: r.h - 12 }, this.beatNotes(b), synths, loopBeats, pos, null);
     }
   }
 

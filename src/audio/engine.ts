@@ -98,7 +98,9 @@ export class AudioEngine {
     this.kitBus = this.bus(KIT_BUS_GAIN);
     this.metronomeBus = this.bus(0.7);
     this.cueBus = this.bus(0.8);
-    this.synth = native ? new NativeSynth(native, (pad) => this.liveSynth && (this.liveMask & (1 << pad)) !== 0) : new SynthVoices(this.ctx, this.bus(KIT_BUS_GAIN));
+    this.synth = native
+      ? new NativeSynth(native, (pad) => this.liveSynth && (this.liveMask & (1 << pad)) !== 0, (when) => this.heardNs(when))
+      : new SynthVoices(this.ctx, this.bus(KIT_BUS_GAIN));
     this.cues = makeCues(this.ctx);
     if (this.native) for (const [name, buffer] of Object.entries(this.cues)) this.native.setCue(name, buffer);
   }
@@ -372,6 +374,7 @@ class NativeSynth implements SynthOut {
   constructor(
     private readonly native: NativeBridgeT,
     private readonly isLive: (pad: number) => boolean,
+    private readonly heardNs: (when: number) => number,
   ) {}
 
   noteOn(pad: number, velocity: number, patch: SynthPatch, transpose = 0): void {
@@ -382,6 +385,10 @@ class NativeSynth implements SynthOut {
   noteOff(pad: number): void {
     if (this.isLive(pad)) return;
     this.native.api.synthNoteOff(pad);
+  }
+
+  schedule(freq: number, velocity: number, patch: SynthPatch, when: number, hold: number): void {
+    this.native.api.synthPlay(velocity, patchToFloats(patch).join(','), freq, this.heardNs(when), hold);
   }
 
   /** AudioEngine.stopAll() already stops native synth voices. */

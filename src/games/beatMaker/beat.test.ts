@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GRIDS, adjacentLine, beatToPattern, hitPosition, isCustomBeat, nextBeatName, quantize, resizeLoop, sameCell, type CustomBeat } from './beat';
+import { SYNTH_PRESETS } from '../../audio/synth';
+import { GRIDS, adjacentLine, beatToPattern, hitPosition, isCustomBeat, nextBeatName, quantize, resizeLoop, sameCell, sanitizeBeat, synthSoundId, type CustomBeat } from './beat';
 
 const note = (pos: number, pad = 0, velocity = 100) => ({ pos, pad, velocity });
 
@@ -56,6 +57,19 @@ describe('beat maker', () => {
     expect(isCustomBeat({ ...beat, notes: [{ pos: 0, pad: 16, velocity: 1 }] })).toBe(false);
     expect(isCustomBeat({ ...beat, notes: [{ ...note(0), kit: 'electro' }] })).toBe(true);
     expect(isCustomBeat({ ...beat, notes: [{ ...note(0), kit: 3 }] })).toBe(false);
+  });
+
+  it('gives each frozen synth sound its own id and repairs stored patches', () => {
+    const pluck = { preset: 'pluck' as const, patch: SYNTH_PRESETS.pluck.patch, transpose: 0 };
+    expect(synthSoundId(pluck)).toBe(synthSoundId({ ...pluck, patch: { ...pluck.patch } }));
+    expect(synthSoundId(pluck)).not.toBe(synthSoundId({ ...pluck, transpose: 2 }));
+    expect(synthSoundId(pluck)).toMatch(/^synth:pluck\./);
+    const beat = { id: 'x', name: 'B', bpm: 90, bars: 1, kitId: 'acoustic', savedAt: 0, notes: [{ ...note(0), kit: 'synth:a', len: 0.5 }], synths: { 'synth:a': { preset: 'custom', patch: { cutoff: 99999 }, transpose: 0 }, bad: { preset: 'nope' } } } as unknown as CustomBeat;
+    expect(isCustomBeat(beat)).toBe(true);
+    const fixed = sanitizeBeat(beat);
+    expect(Object.keys(fixed.synths!)).toEqual(['synth:a']);
+    expect(fixed.synths!['synth:a']!.patch.cutoff).toBe(12000);
+    expect(fixed.synths!['synth:a']!.patch.wave).toBe('triangle');
   });
 
   it('names new beats with the lowest free number', () => {

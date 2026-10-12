@@ -276,6 +276,10 @@ JNIEXPORT void JNICALL FN(synthNoteOn)(JNIEnv *env, jclass, jint pad, jint veloc
   Engine::get().synthNoteOn(pad, velocity, patchFrom(env, patch), freq, heardNs);
 }
 
+JNIEXPORT void JNICALL FN(synthPlay)(JNIEnv *env, jclass, jint velocity, jfloatArray patch, jfloat freq, jlong heardNs, jfloat holdS) {
+  Engine::get().synthPlay(velocity, patchFrom(env, patch), freq, heardNs, holdS);
+}
+
 JNIEXPORT void JNICALL FN(synthNoteOff)(JNIEnv *, jclass, jint pad) { Engine::get().synthNoteOff(pad); }
 
 JNIEXPORT void JNICALL FN(setShaping)(JNIEnv *, jclass, jint threshold, jfloat gamma, jint doubleTriggerMs) {

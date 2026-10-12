@@ -15,6 +15,8 @@ interface PadNativeApi {
   setHitLeds(spec: string): void;
   synthNoteOn(pad: number, velocity: number, patchCsv: string, freq: number, heardNs: number): void;
   synthNoteOff(pad: number): void;
+  /** A scheduled synth note not tied to a pad, released after `holdS` (if its patch sustains). */
+  synthPlay(velocity: number, patchCsv: string, freq: number, heardNs: number, holdS: number): void;
   setShaping(threshold: number, gamma: number, doubleTriggerMs: number): void;
   loadKit(id: string): void;
   /** Loads a kit without selecting it (answers with kitLoaded too). */
